@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sed -n '1109,1120p' /c/Projects/InternalPortal/client/src/styles.css)",
+      "Bash(sed -n '458,500p' /c/Projects/InternalPortal/client/src/styles.css)",
+      "Bash(dir C:\\\\Projects\\\\InternalPortal:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(node:*)",
+      "Bash(ls *.env .env)",
+      "Bash(sqlcmd -S 172.1.10.43 -U sa -Q \"SELECT TOP 1 * FROM [AmazonApi].[dbo].[WalmartAllPnL]\" -W)",
+      "Bash(sqlcmd:*)",
+      "Bash(curl:*)",
+      "Bash(findstr /n \"HstryUser detail-footer modified\" \"C:\\\\Projects\\\\InternalPortal\\\\client\\\\src\\\\views\\\\InvoiceDetailView.tsx\")",
+      "Bash(findstr:*)",
+      "Bash(./server-restart.bat:*)"
+    ]
+  }
+}
