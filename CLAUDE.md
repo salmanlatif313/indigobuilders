@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code when working in this repository.
 
 ---
-
+-save all the prompts to prompt.txt
 ## Project Overview
 
 IndigoBuilders ERP is an internal business portal for Indigo Builders Company,
