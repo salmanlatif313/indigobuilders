@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, Project, ProjectFinancials } from '../api';
+import { api, Project, ProjectFinancials, UserRow } from '../api';
 import { useAuth } from '../AuthContext';
 import { useLang } from '../LangContext';
 import { tr } from '../translations';
@@ -26,10 +26,14 @@ export default function ProjectsView() {
   const [search, setSearch] = useState('');
   const [financials, setFinancials] = useState<{ project: Project; data: ProjectFinancials } | null>(null);
   const [loadingFin, setLoadingFin] = useState(false);
+  const [users, setUsers] = useState<UserRow[]>([]);
 
   const load = () => {
     setLoading(true);
-    api.getProjects().then(r => setProjects(r.projects)).catch(e => setError(e.message)).finally(() => setLoading(false));
+    Promise.all([api.getProjects(), api.getUsers()])
+      .then(([pr, us]) => { setProjects(pr.projects); setUsers(us.users.filter(u => u.IsActive)); })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => { load(); }, []);

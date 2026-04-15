@@ -1,6 +1,9 @@
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
 import { runQuery, runQueryResult } from '../db';
 import { requireAuth, requireRole } from '../middleware/requireAuth';
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 const router = Router();
 router.use(requireAuth);
@@ -111,6 +114,77 @@ router.delete('/:id', requireRole('Admin'), async (req: Request, res: Response) 
     console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
+});
+
+// POST /api/labor/import  (Admin, Finance, PM) — bulk CSV import
+router.post('/import', requireRole('Admin', 'Finance', 'PM'), upload.single('file'), async (req: Request, res: Response) => {
+  if (!req.file) { res.status(400).json({ error: 'CSV file required' }); return; }
+  const text = req.file.buffer.toString('utf-8');
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) { res.status(400).json({ error: 'CSV must have header + at least one row' }); return; }
+
+  // Expected columns (order): IqamaNumber,FullName,FullNameAr,NationalityCode,IBAN,BankCode,BasicSalary,HousingAllowance,TransportAllowance,OtherAllowances,GOSINumber,JobTitle,ProjectID,IqamaExpiry
+  const header = lines[0].split(',').map(h => h.trim().toLowerCase());
+  const idx = (name: string) => header.indexOf(name.toLowerCase());
+
+  const inserted: number[] = [];
+  const skipped: { row: number; reason: string }[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+    const get = (name: string) => cols[idx(name)] || '';
+
+    const iqamaNumber   = get('IqamaNumber');
+    const fullName      = get('FullName');
+    const nationalityCode = get('NationalityCode');
+    const iban          = get('IBAN');
+    const basicSalary   = parseFloat(get('BasicSalary'));
+
+    if (!iqamaNumber || !fullName || !nationalityCode || !iban || isNaN(basicSalary) || basicSalary <= 0) {
+      skipped.push({ row: i + 1, reason: 'Missing required fields (IqamaNumber, FullName, NationalityCode, IBAN, BasicSalary)' });
+      continue;
+    }
+
+    const projectIDStr = get('ProjectID');
+    const projectID = projectIDStr ? parseInt(projectIDStr) : null;
+
+    try {
+      const result = await runQueryResult(
+        `INSERT INTO Labor (IqamaNumber, FullName, FullNameAr, NationalityCode, IBAN, BankCode,
+           BasicSalary, HousingAllowance, TransportAllowance, OtherAllowances,
+           GOSINumber, JobTitle, ProjectID, IqamaExpiry, ChangedBy)
+         OUTPUT INSERTED.LaborID
+         VALUES (@iqamaNumber, @fullName, @fullNameAr, @nationalityCode, @iban, @bankCode,
+           @basicSalary, @housingAllowance, @transportAllowance, @otherAllowances,
+           @gosiNumber, @jobTitle, @projectID, @iqamaExpiry, @changedBy)`,
+        {
+          iqamaNumber, fullName,
+          fullNameAr:          get('FullNameAr') || null,
+          nationalityCode,     iban,
+          bankCode:            get('BankCode') || null,
+          basicSalary,
+          housingAllowance:    parseFloat(get('HousingAllowance')) || 0,
+          transportAllowance:  parseFloat(get('TransportAllowance')) || 0,
+          otherAllowances:     parseFloat(get('OtherAllowances')) || 0,
+          gosiNumber:          get('GOSINumber') || null,
+          jobTitle:            get('JobTitle') || null,
+          projectID:           isNaN(projectID as unknown as number) ? null : projectID,
+          iqamaExpiry:         get('IqamaExpiry') || null,
+          changedBy:           req.user?.username,
+        }
+      );
+      inserted.push(result.recordset[0]?.LaborID);
+    } catch (err: unknown) {
+      const e = err as { number?: number };
+      if (e.number === 2627) {
+        skipped.push({ row: i + 1, reason: `Iqama ${iqamaNumber} already exists` });
+      } else {
+        skipped.push({ row: i + 1, reason: 'Database error' });
+      }
+    }
+  }
+
+  res.status(201).json({ message: `Import complete`, inserted: inserted.length, skipped });
 });
 
 // GET /api/labor/wps/generate?month=2026-03  (Admin, Finance)

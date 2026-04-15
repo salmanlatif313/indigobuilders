@@ -13,6 +13,7 @@ import wpsRoutes from './routes/wps';
 import reportsRoutes from './routes/reports';
 import expensesRoutes from './routes/expenses';
 import complianceRoutes from './routes/compliance';
+import paymentRoutes from './routes/payments';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
@@ -34,6 +35,7 @@ app.use('/api/wps', wpsRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/expenses', expensesRoutes);
 app.use('/api/compliance', complianceRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Serve React in production
 if (process.env.NODE_ENV === 'production') {

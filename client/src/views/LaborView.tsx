@@ -24,11 +24,17 @@ export default function LaborView() {
   const [editId, setEditId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [showImport, setShowImport] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ inserted: number; skipped: { row: number; reason: string }[] } | null>(null);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const T = (k: any) => tr('labor', k, lang);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const C = (k: any) => tr('common', k, lang);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const I = (k: any) => tr('labor_import', k, lang);
 
   const load = () => {
     setLoading(true);
@@ -72,6 +78,29 @@ export default function LaborView() {
     catch (e: unknown) { alert(e instanceof Error ? e.message : 'Error'); }
   };
 
+  const handleImport = async () => {
+    if (!importFile) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const result = await api.importLabor(importFile);
+      setImportResult({ inserted: result.inserted, skipped: result.skipped });
+      if (result.inserted > 0) load();
+    } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Error'); }
+    finally { setImporting(false); }
+  };
+
+  const downloadTemplate = () => {
+    const csv = 'IqamaNumber,FullName,FullNameAr,NationalityCode,IBAN,BankCode,BasicSalary,HousingAllowance,TransportAllowance,OtherAllowances,GOSINumber,JobTitle,ProjectID,IqamaExpiry\n' +
+                '1234567890,Ahmed Ali,أحمد علي,SAU,SA0380000000608010167519,RJHI,5000,2000,500,0,,Construction Worker,,2027-12-31\n';
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'labor_import_template.csv';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+  };
+
   const fv = (key: keyof Labor) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm(p => ({ ...p, [key]: e.target.value }));
 
@@ -85,6 +114,9 @@ export default function LaborView() {
         <div className="flex gap-2 flex-wrap">
           {can('Admin', 'Finance') && (
             <button className="btn-secondary" onClick={() => setShowWPS(true)}>{T('wpsBtn')}</button>
+          )}
+          {canEdit && (
+            <button className="btn-secondary" onClick={() => { setShowImport(true); setImportResult(null); }}>{I('btn')}</button>
           )}
           {canEdit && <button className="btn-primary" onClick={openNew}>{T('newBtn')}</button>}
         </div>
@@ -235,6 +267,46 @@ export default function LaborView() {
                 {saving ? C('saving') : C('save')}
               </button>
               <button className="btn-secondary flex-1" onClick={() => setShowForm(false)}>{C('cancel')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CSV Import Modal */}
+      {showImport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
+            <div className="flex justify-between items-center p-6 border-b">
+              <h2 className="font-semibold text-lg">{I('title')}</h2>
+              <button onClick={() => { setShowImport(false); setImportFile(null); setImportResult(null); }} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-gray-500 bg-gray-50 rounded p-3">{I('hint')}</p>
+              <button className="text-brand-600 hover:underline text-sm" onClick={downloadTemplate}>{I('template')}</button>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{I('choose')}</label>
+                <input type="file" accept=".csv" className="input-field text-sm"
+                  onChange={e => { setImportFile(e.target.files?.[0] || null); setImportResult(null); }} />
+              </div>
+              {importResult && (
+                <div className="space-y-2">
+                  <p className="text-green-700 font-medium">{I('result')} {importResult.inserted}</p>
+                  {importResult.skipped.length > 0 && (
+                    <div className="bg-amber-50 rounded p-3">
+                      <p className="text-amber-700 font-medium mb-1">{I('skipped')} {importResult.skipped.length}</p>
+                      <ul className="text-xs text-amber-600 space-y-0.5 max-h-32 overflow-y-auto">
+                        {importResult.skipped.map(s => <li key={s.row}>Row {s.row}: {s.reason}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3 p-6 border-t">
+              <button className="btn-primary flex-1" onClick={handleImport} disabled={!importFile || importing}>
+                {importing ? I('importing') : I('importBtn')}
+              </button>
+              <button className="btn-secondary flex-1" onClick={() => { setShowImport(false); setImportFile(null); setImportResult(null); }}>{C('cancel')}</button>
             </div>
           </div>
         </div>

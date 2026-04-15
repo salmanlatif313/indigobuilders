@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { api, Invoice, InvoiceItem, CreateInvoiceInput } from '../api';
+import { api, Invoice, InvoiceItem, CreateInvoiceInput, Payment, PAYMENT_METHODS } from '../api';
 import { useAuth } from '../AuthContext';
 import { useLang } from '../LangContext';
 import { tr } from '../translations';
@@ -27,6 +27,11 @@ export default function InvoicesView() {
   ]);
   const [saving, setSaving] = useState(false);
   const [detail, setDetail] = useState<{ invoice: Invoice; items: InvoiceItem[] } | null>(null);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [paymentTotal, setPaymentTotal] = useState(0);
+  const [showPayForm, setShowPayForm] = useState(false);
+  const [payForm, setPayForm] = useState({ paymentDate: new Date().toISOString().slice(0, 10), amount: '', paymentMethod: 'BankTransfer', reference: '', notes: '' });
+  const [paySaving, setPaySaving] = useState(false);
   const [search, setSearch] = useState('');
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -34,6 +39,8 @@ export default function InvoicesView() {
   const T = (k: any) => tr('invoices', k, lang);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const C = (k: any) => tr('common', k, lang);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const P = (k: any) => tr('payments', k, lang);
   const sar = C('sar');
 
   const load = () => {
@@ -50,8 +57,49 @@ export default function InvoicesView() {
   );
 
   const openDetail = async (id: number) => {
-    try { setDetail(await api.getInvoice(id)); }
-    catch (e: unknown) { alert(e instanceof Error ? e.message : 'Error'); }
+    try {
+      const [inv, pay] = await Promise.all([api.getInvoice(id), api.getPayments(id)]);
+      setDetail(inv);
+      setPayments(pay.payments);
+      setPaymentTotal(pay.total);
+      setShowPayForm(false);
+      setPayForm({ paymentDate: new Date().toISOString().slice(0, 10), amount: '', paymentMethod: 'BankTransfer', reference: '', notes: '' });
+    } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Error'); }
+  };
+
+  const refreshPayments = async (invoiceId: number) => {
+    const pay = await api.getPayments(invoiceId);
+    setPayments(pay.payments);
+    setPaymentTotal(pay.total);
+  };
+
+  const handleAddPayment = async () => {
+    if (!detail || !payForm.paymentDate || !payForm.amount) { alert(P('required')); return; }
+    setPaySaving(true);
+    try {
+      await api.createPayment({
+        invoiceId: detail.invoice.InvoiceID!,
+        paymentDate: payForm.paymentDate,
+        amount: parseFloat(payForm.amount),
+        paymentMethod: payForm.paymentMethod,
+        reference: payForm.reference || undefined,
+        notes: payForm.notes || undefined,
+      });
+      setShowPayForm(false);
+      setPayForm({ paymentDate: new Date().toISOString().slice(0, 10), amount: '', paymentMethod: 'BankTransfer', reference: '', notes: '' });
+      await refreshPayments(detail.invoice.InvoiceID!);
+      load(); // refresh list to update balance
+    } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Error'); }
+    finally { setPaySaving(false); }
+  };
+
+  const handleDeletePayment = async (paymentId: number) => {
+    if (!confirm(P('deleteConfirm'))) return;
+    try {
+      await api.deletePayment(paymentId);
+      await refreshPayments(detail!.invoice.InvoiceID!);
+      load();
+    } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Error'); }
   };
 
   const handlePrint = () => {
@@ -125,8 +173,8 @@ export default function InvoicesView() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  {[T('number'), T('client'), T('project'), T('date'), T('total'), T('vat'), C('status'), C('actions')].map(h => (
-                    <th key={h} className="px-4 py-3 text-start font-medium text-gray-600">{h}</th>
+                  {[T('number'), T('client'), T('project'), T('date'), T('total'), P('balance'), C('status'), C('actions')].map((h, hi) => (
+                    <th key={hi} className="px-4 py-3 text-start font-medium text-gray-600">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -138,7 +186,9 @@ export default function InvoicesView() {
                     <td className="px-4 py-3 text-gray-600">{inv.ProjectCode || '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{new Date(inv.InvoiceDate).toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-GB')}</td>
                     <td className="px-4 py-3 font-medium">{Number(inv.TotalAmount).toLocaleString()} {sar}</td>
-                    <td className="px-4 py-3">{Number(inv.VATAmount).toLocaleString()} {sar}</td>
+                    <td className={`px-4 py-3 font-medium ${Number(inv.BalanceDue) <= 0.01 ? 'text-green-600' : 'text-red-600'}`}>
+                      {Number(inv.BalanceDue) <= 0.01 ? '✓' : `${Number(inv.BalanceDue).toLocaleString()} ${sar}`}
+                    </td>
                     <td className="px-4 py-3">{statusBadge(inv.ZatcaStatus)}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
@@ -242,7 +292,7 @@ export default function InvoicesView() {
                 </tbody>
               </table>
               <div className="flex justify-end">
-                <div className="w-64 space-y-1.5 text-sm">
+                <div className="w-72 space-y-1.5 text-sm">
                   <div className="flex justify-between"><span className="text-gray-500">{T('subTotal')}</span><span>{Number(detail.invoice.SubTotal).toLocaleString()} {sar}</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">{T('vat')} ({detail.invoice.VATRate}%)</span><span>{Number(detail.invoice.VATAmount).toLocaleString()} {sar}</span></div>
                   {Number(detail.invoice.RetentionAmount) > 0 && (
@@ -251,8 +301,91 @@ export default function InvoicesView() {
                   <div className="flex justify-between font-bold text-base pt-1.5 border-t border-gray-300">
                     <span>{T('total')}</span><span>{Number(detail.invoice.TotalAmount).toLocaleString()} {sar}</span>
                   </div>
+                  <div className="flex justify-between text-green-700 pt-1"><span>{P('totalPaid')}</span><span>{paymentTotal.toLocaleString()} {sar}</span></div>
+                  <div className={`flex justify-between font-semibold pt-1 border-t border-gray-200 ${Number(detail.invoice.TotalAmount) - paymentTotal <= 0.01 ? 'text-green-600' : 'text-red-600'}`}>
+                    <span>{P('balance')}</span>
+                    <span>{Number(detail.invoice.TotalAmount) - paymentTotal <= 0.01 ? P('paidFull') : `${(Number(detail.invoice.TotalAmount) - paymentTotal).toLocaleString()} ${sar}`}</span>
+                  </div>
                 </div>
               </div>
+            </div>
+
+            {/* Payments Panel */}
+            <div className="border-t pt-4 px-6 pb-2">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="font-semibold text-gray-800">{P('title')}</h3>
+                {can('Admin', 'Finance') && Number(detail.invoice.TotalAmount) - paymentTotal > 0.01 && (
+                  <button className="btn-secondary text-xs" onClick={() => setShowPayForm(v => !v)}>{P('addBtn')}</button>
+                )}
+              </div>
+
+              {showPayForm && (
+                <div className="bg-gray-50 rounded-lg p-4 mb-3 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 mb-1 block">{P('date')}*</label>
+                      <input type="date" className="input-field text-sm" value={payForm.paymentDate}
+                        onChange={e => setPayForm(p => ({ ...p, paymentDate: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 mb-1 block">{P('amount')}*</label>
+                      <input type="number" className="input-field text-sm" placeholder="0.00" value={payForm.amount}
+                        onChange={e => setPayForm(p => ({ ...p, amount: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 mb-1 block">{P('method')}</label>
+                      <select className="input-field text-sm" value={payForm.paymentMethod}
+                        onChange={e => setPayForm(p => ({ ...p, paymentMethod: e.target.value }))}>
+                        {PAYMENT_METHODS.map(m => <option key={m}>{m}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 mb-1 block">{P('reference')}</label>
+                      <input className="input-field text-sm" value={payForm.reference}
+                        onChange={e => setPayForm(p => ({ ...p, reference: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">{P('notes')}</label>
+                    <input className="input-field text-sm" value={payForm.notes}
+                      onChange={e => setPayForm(p => ({ ...p, notes: e.target.value }))} />
+                  </div>
+                  <button className="btn-primary text-sm w-full" onClick={handleAddPayment} disabled={paySaving}>
+                    {paySaving ? P('saving') : P('saveBtn')}
+                  </button>
+                </div>
+              )}
+
+              {payments.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-3">{P('noPayments')}</p>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-gray-500 border-b">
+                      <th className="text-start py-1.5 font-medium">{P('date')}</th>
+                      <th className="text-start py-1.5 font-medium">{P('method')}</th>
+                      <th className="text-start py-1.5 font-medium">{P('reference')}</th>
+                      <th className="text-end py-1.5 font-medium">{P('amount')}</th>
+                      {can('Admin', 'Finance') && <th></th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.map(pay => (
+                      <tr key={pay.PaymentID} className="border-b border-gray-50">
+                        <td className="py-1.5">{pay.PaymentDate}</td>
+                        <td className="py-1.5"><span className="bg-blue-50 text-blue-700 rounded px-1.5 py-0.5">{pay.PaymentMethod}</span></td>
+                        <td className="py-1.5 text-gray-500">{pay.Reference || '—'}</td>
+                        <td className="py-1.5 text-end font-medium text-green-700">{Number(pay.Amount).toLocaleString()} {sar}</td>
+                        {can('Admin', 'Finance') && (
+                          <td className="py-1.5 text-end">
+                            <button onClick={() => handleDeletePayment(pay.PaymentID)} className="text-red-400 hover:text-red-600 text-xs px-1">✕</button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
             <div className="p-6 border-t flex gap-3">
               {can('Admin', 'Finance') && detail.invoice.ZatcaStatus === 'Draft' && (

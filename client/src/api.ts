@@ -128,6 +128,30 @@ export const api = {
   getInvoiceAging: () => request<InvoiceAgingReport>('GET', '/reports/invoice-aging'),
   getLaborByProject: () => request<LaborByProjectReport>('GET', '/reports/labor-by-project'),
 
+  // Payments
+  getPayments: (invoiceId?: number) => {
+    const qs = invoiceId ? `?invoiceId=${invoiceId}` : '';
+    return request<{ payments: Payment[]; count: number; total: number }>('GET', `/payments${qs}`);
+  },
+  createPayment: (data: PaymentInput) => request<{ message: string; paymentId: number }>('POST', '/payments', data),
+  deletePayment: (id: number) => request<{ message: string }>('DELETE', `/payments/${id}`),
+
+  // Labor CSV import
+  importLabor: (file: File) => {
+    const token = getToken();
+    const fd = new FormData();
+    fd.append('file', file);
+    return fetch(`${BASE}/labor/import`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token ?? ''}` },
+      body: fd,
+    }).then(async r => {
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Import failed');
+      return data as { message: string; inserted: number; skipped: { row: number; reason: string }[] };
+    });
+  },
+
   // Invoices
   getInvoices: (params?: { projectId?: number; status?: string }) => {
     const qs = new URLSearchParams();
@@ -171,9 +195,23 @@ export interface Invoice {
   InvoiceDate: string; SupplyDate: string; DueDate: string;
   SubTotal: number; VATRate: number; VATAmount: number;
   RetentionRate: number; RetentionAmount: number; TotalAmount: number;
+  TotalPaid: number; BalanceDue: number;
   ZatcaStatus: string; ZatcaUUID: string; ZatcaQRCode: string;
   ProjectName: string; ProjectCode: string; Notes: string;
 }
+
+export interface Payment {
+  PaymentID: number; InvoiceID: number; InvoiceNumber: string;
+  PaymentDate: string; Amount: number; PaymentMethod: string;
+  Reference: string; Notes: string; ChangedBy: string; ChangeDate: string;
+}
+
+export interface PaymentInput {
+  invoiceId: number; paymentDate: string; amount: number;
+  paymentMethod?: string; reference?: string; notes?: string;
+}
+
+export const PAYMENT_METHODS = ['BankTransfer', 'Cheque', 'Cash', 'Online'];
 
 export interface InvoiceItem {
   ItemID?: number; InvoiceID?: number; Description: string;
