@@ -34,23 +34,16 @@ if errorlevel 1 (
 )
 
 echo [1/7] Committing and pushing to GitHub...
-git add .
-for /f "tokens=*" %%i in ('git status --porcelain') do set HAS_CHANGES=1
-if defined HAS_CHANGES (
-  git commit -m "Deploy %BACKUP_STAMP%"
-  if errorlevel 1 goto :git_failed
-) else (
-  echo No changes to commit.
-)
-git push origin dev
-if errorlevel 1 goto :git_failed
-git checkout master
-if errorlevel 1 goto :git_failed
-git merge dev --no-ff -m "Merge dev into master for deployment %BACKUP_STAMP%"
-if errorlevel 1 goto :git_failed
-git push origin master
-if errorlevel 1 goto :git_failed
-git checkout dev
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$stamp = '%BACKUP_STAMP%'; " ^
+  "$changes = git status --porcelain; " ^
+  "if ($changes) { git add .; git commit -m \"Deploy $stamp\" } else { Write-Host 'No changes to commit.' }; " ^
+  "git push origin dev; " ^
+  "git checkout master; " ^
+  "git merge dev --no-ff -m \"Merge dev into master for deployment $stamp\"; " ^
+  "git push origin master; " ^
+  "git checkout dev; " ^
+  "exit $LASTEXITCODE"
 if errorlevel 1 goto :git_failed
 echo Git: dev merged into master and pushed.
 echo.
