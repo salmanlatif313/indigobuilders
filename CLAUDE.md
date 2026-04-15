@@ -73,10 +73,37 @@ Copy `.env.example` to `.env`. Key variables:
 
 ---
 
+## UI / Layout Rules
+
+- **Sidebar is fixed height**: the root layout div must use `h-screen overflow-hidden`. The sidebar never scrolls with page content — only `<main>` scrolls (`overflow-y-auto`). Do not change this to `min-h-screen`.
+- **Brand colors**: Primary indigo `#0c2f5c` (`brand-900`), gold `#c19f3c` (`gold-500`). Always use Tailwind `brand-*` / `gold-*` classes; only use inline `style` when Tailwind purges the value.
+- **Credentials**: default admin login is `admin` / `admin`.
+
+---
+
 ## Compliance Modules
 
 - **ZATCA Phase 2**: UBL 2.1 XML generation, QR code, clearance status on Invoices
 - **WPS v3.1**: SIF file generation from Labor + PayrollRuns tables
+
+---
+
+## Server — PM2 Applications (172.1.10.51)
+
+Three apps run on the production server, all managed by PM2:
+
+| App | PM2 Name | Server Path | Port |
+|---|---|---|---|
+| IndigoBuilders ERP | `indigobuilders-api` | `C:\indigobuilders` | 4000 |
+| Internal Portal | `internalportal-api` | `C:\InternalPortal` | 3001 |
+| SalApp (Personal Accounting) | `salapp-api` | `C:\Sites` | 3000 |
+
+**Unified manager** (run on the server): `server-manager.bat`
+- Restart / stop / start all apps together, or individually
+- Health checks per app
+- Log tailing per app
+
+Do **not** manage apps with three separate bat files — always use `server-manager.bat`.
 
 ---
 
