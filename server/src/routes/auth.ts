@@ -78,8 +78,8 @@ router.get('/roles', requireAuth, async (_req: Request, res: Response) => {
 router.get('/users', requireAuth, async (req: Request, res: Response) => {
   if (req.user?.roleName !== 'Admin') { res.status(403).json({ error: 'Admin only' }); return; }
   try {
-    const rows = await runQuery<{ UserID: number; Username: string; FullName: string; Email: string; RoleName: string; IsActive: boolean }>(
-      `SELECT u.UserID, u.Username, u.FullName, u.Email, r.RoleName, u.IsActive
+    const rows = await runQuery<{ UserID: number; Username: string; FullName: string; Email: string; RoleID: number; RoleName: string; IsActive: boolean }>(
+      `SELECT u.UserID, u.Username, u.FullName, u.Email, u.RoleID, r.RoleName, u.IsActive
        FROM Users u JOIN Roles r ON r.RoleID = u.RoleID ORDER BY u.FullName`
     );
     res.json({ users: rows, count: rows.length });

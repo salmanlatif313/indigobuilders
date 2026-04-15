@@ -112,12 +112,26 @@ export default function InvoicesView() {
     if (!content) return;
     const w = window.open('', '_blank');
     if (!w) return;
+    const logoUrl = `${window.location.origin}/logo.png`;
     w.document.write(`
       <html><head><title>Invoice</title>
-      <style>body{font-family:sans-serif;padding:24px;direction:${lang === 'ar' ? 'rtl' : 'ltr'}}
-      table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:start}
-      th{background:#f5f5f5}h2{margin-bottom:4px}.total{font-size:1.1em;font-weight:bold}</style>
-      </head><body>${content}</body></html>`);
+      <style>
+        body{font-family:sans-serif;padding:24px;direction:${lang === 'ar' ? 'rtl' : 'ltr'}}
+        table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:start}
+        th{background:#f5f5f5}h2{margin-bottom:4px}.total{font-size:1.1em;font-weight:bold}
+        .print-logo{height:64px;object-fit:contain;display:block}
+      </style>
+      </head><body>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;border-bottom:2px solid #0c2f5c;padding-bottom:12px">
+          <img src="${logoUrl}" class="print-logo" alt="Indigo Builders" />
+          <div style="text-align:end;color:#555;font-size:12px">
+            <div style="font-size:18px;font-weight:bold;color:#0c2f5c">Indigo Builders Company</div>
+            <div>VAT: 311234567890003</div>
+            <div>Riyadh, Kingdom of Saudi Arabia</div>
+          </div>
+        </div>
+        ${content}
+      </body></html>`);
     w.document.close();
     w.focus();
     setTimeout(() => { w.print(); w.close(); }, 300);
@@ -262,9 +276,8 @@ export default function InvoicesView() {
             {/* Printable content */}
             <div className="p-6" ref={printRef}>
               <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h2 className="text-xl font-bold text-brand-900">IndigoBuilders</h2>
-                  <p className="text-sm text-gray-500">Indigo Builders Company</p>
+                <div className="hidden print:block">
+                  {/* logo injected by print handler */}
                 </div>
                 <div className="text-end">
                   <p className="text-lg font-bold text-gray-900">{detail.invoice.InvoiceNumber}</p>
