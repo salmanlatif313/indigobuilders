@@ -3,6 +3,7 @@ import { api, Invoice, InvoiceItem, CreateInvoiceInput, Payment, PAYMENT_METHODS
 import { useAuth } from '../AuthContext';
 import { useLang } from '../LangContext';
 import { tr } from '../translations';
+import ChipFilter from '../components/ChipFilter';
 
 function statusBadge(s: string) {
   const cls: Record<string, string> = { Draft: 'badge-draft', Reported: 'badge-reported', Cleared: 'badge-cleared', Rejected: 'badge-rejected' };
@@ -33,6 +34,7 @@ export default function InvoicesView() {
   const [payForm, setPayForm] = useState({ paymentDate: new Date().toISOString().slice(0, 10), amount: '', paymentMethod: 'BankTransfer', reference: '', notes: '' });
   const [paySaving, setPaySaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState<number | ''>('');
   const printRef = useRef<HTMLDivElement>(null);
@@ -56,10 +58,16 @@ export default function InvoicesView() {
   }, []);
 
   const filtered = invoices.filter(i =>
-    i.InvoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
-    (i.ClientName || '').toLowerCase().includes(search.toLowerCase()) ||
-    (i.ProjectCode || '').toLowerCase().includes(search.toLowerCase())
+    (!statusFilter || i.ZatcaStatus === statusFilter) &&
+    (i.InvoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
+     (i.ClientName || '').toLowerCase().includes(search.toLowerCase()) ||
+     (i.ProjectCode || '').toLowerCase().includes(search.toLowerCase()))
   );
+
+  const statusChips = ['Draft', 'Reported', 'Cleared', 'Rejected'].map(s => ({
+    value: s, label: s,
+    count: invoices.filter(i => i.ZatcaStatus === s).length,
+  }));
 
   const openDetail = async (id: number) => {
     try {
@@ -180,7 +188,10 @@ export default function InvoicesView() {
         )}
       </div>
 
-      <input className="input-field max-w-sm" placeholder={C('search')} value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+        <input className="input-field max-w-sm" placeholder={C('search')} value={search} onChange={e => setSearch(e.target.value)} />
+        <ChipFilter chips={statusChips} active={statusFilter} onChange={setStatusFilter} />
+      </div>
 
       {error && <div className="text-red-600 bg-red-50 rounded-lg px-4 py-3">{error}</div>}
 

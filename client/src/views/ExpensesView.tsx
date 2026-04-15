@@ -3,6 +3,7 @@ import { api, Expense, ExpenseInput, Project, EXPENSE_CATEGORIES } from '../api'
 import { useAuth } from '../AuthContext';
 import { useLang } from '../LangContext';
 import { tr } from '../translations';
+import ChipFilter from '../components/ChipFilter';
 
 const EMPTY: Partial<Expense> = {
   ProjectID: undefined, ExpenseDate: new Date().toISOString().slice(0, 10),
@@ -54,11 +55,12 @@ export default function ExpensesView() {
   const [editId, setEditId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Filters
+  // Server-side filters (trigger reload)
   const [filterProject, setFilterProject] = useState('');
-  const [filterCategory, setFilterCategory] = useState('');
   const [filterFrom, setFilterFrom] = useState('');
   const [filterTo, setFilterTo] = useState('');
+  // Client-side chip filter
+  const [filterCategory, setFilterCategory] = useState('');
 
   const canEdit   = can('Admin', 'Finance', 'PM');
   const canDelete = can('Admin', 'Finance');
@@ -67,7 +69,6 @@ export default function ExpensesView() {
     setLoading(true);
     const params = {
       projectId: filterProject ? parseInt(filterProject) : undefined,
-      category:  filterCategory || undefined,
       from:      filterFrom || undefined,
       to:        filterTo   || undefined,
     };
@@ -113,7 +114,16 @@ export default function ExpensesView() {
     catch (e: unknown) { alert(e instanceof Error ? e.message : 'Error'); }
   };
 
-  const grandTotal = expenses.reduce((s, e) => s + Number(e.Amount) + Number(e.VATAmount), 0);
+  const filteredExpenses = filterCategory
+    ? expenses.filter(e => e.Category === filterCategory)
+    : expenses;
+
+  const categoryChips = EXPENSE_CATEGORIES.map(cat => ({
+    value: cat, label: cat,
+    count: expenses.filter(e => e.Category === cat).length,
+  })).filter(c => c.count > 0);
+
+  const grandTotal = filteredExpenses.reduce((s, e) => s + Number(e.Amount) + Number(e.VATAmount), 0);
   const sf = (k: keyof Expense) => (ev: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(p => ({ ...p, [k]: ev.target.value }));
 
@@ -123,7 +133,7 @@ export default function ExpensesView() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{T('title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {expenses.length} {C('records')} —&nbsp;
+            {filteredExpenses.length}{filterCategory ? `/${expenses.length}` : ''} {C('records')} —&nbsp;
             <span className="font-medium text-gray-800">{T('grandTotal')}: {Number(grandTotal).toLocaleString()} {sar}</span>
           </p>
         </div>
@@ -134,23 +144,22 @@ export default function ExpensesView() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <select className="input-field max-w-[180px]" value={filterProject} onChange={e => setFilterProject(e.target.value)}>
-          <option value="">{T('filterProject')}</option>
-          {projects.map(p => <option key={p.ProjectID} value={p.ProjectID}>{p.ProjectCode}</option>)}
-        </select>
-        <select className="input-field max-w-[160px]" value={filterCategory} onChange={e => setFilterCategory(e.target.value)}>
-          <option value="">{T('filterCat')}</option>
-          {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <input type="date" className="input-field max-w-[150px]" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} placeholder={lang === 'ar' ? 'من' : 'From'} />
-        <input type="date" className="input-field max-w-[150px]" value={filterTo}   onChange={e => setFilterTo(e.target.value)}   placeholder={lang === 'ar' ? 'إلى' : 'To'} />
-        <button className="btn-primary" onClick={load}>{lang === 'ar' ? 'بحث' : 'Search'}</button>
-        {(filterProject || filterCategory || filterFrom || filterTo) && (
-          <button className="btn-secondary" onClick={() => { setFilterProject(''); setFilterCategory(''); setFilterFrom(''); setFilterTo(''); }}>
-            {lang === 'ar' ? 'مسح' : 'Clear'}
-          </button>
-        )}
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-3 items-end">
+          <select className="input-field max-w-[180px]" value={filterProject} onChange={e => setFilterProject(e.target.value)}>
+            <option value="">{T('filterProject')}</option>
+            {projects.map(p => <option key={p.ProjectID} value={p.ProjectID}>{p.ProjectCode}</option>)}
+          </select>
+          <input type="date" className="input-field max-w-[150px]" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
+          <input type="date" className="input-field max-w-[150px]" value={filterTo}   onChange={e => setFilterTo(e.target.value)} />
+          <button className="btn-primary" onClick={load}>{lang === 'ar' ? 'بحث' : 'Search'}</button>
+          {(filterProject || filterFrom || filterTo) && (
+            <button className="btn-secondary" onClick={() => { setFilterProject(''); setFilterFrom(''); setFilterTo(''); }}>
+              {lang === 'ar' ? 'مسح' : 'Clear'}
+            </button>
+          )}
+        </div>
+        <ChipFilter chips={categoryChips} active={filterCategory} onChange={setFilterCategory} />
       </div>
 
       {error && <div className="text-red-600 bg-red-50 rounded-lg px-4 py-3">{error}</div>}
@@ -170,7 +179,7 @@ export default function ExpensesView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {expenses.map(e => (
+                {filteredExpenses.map(e => (
                   <tr key={e.ExpenseID} className="hover:bg-gray-50/50">
                     <td className="px-3 py-3 text-gray-600 text-xs whitespace-nowrap">{e.ExpenseDate}</td>
                     <td className="px-3 py-3 text-xs text-brand-600 font-mono">{e.ProjectCode || '—'}</td>
@@ -193,16 +202,16 @@ export default function ExpensesView() {
                     </td>
                   </tr>
                 ))}
-                {expenses.length === 0 && (
+                {filteredExpenses.length === 0 && (
                   <tr><td colSpan={10} className="text-center py-12 text-gray-400">{T('noData')}</td></tr>
                 )}
               </tbody>
-              {expenses.length > 0 && (
+              {filteredExpenses.length > 0 && (
                 <tfoot className="bg-gray-50 border-t font-semibold">
                   <tr>
                     <td colSpan={6} className="px-3 py-3 text-gray-700">{T('grandTotal')}</td>
-                    <td className="px-3 py-3">{expenses.reduce((s,e) => s+Number(e.Amount),0).toLocaleString()}</td>
-                    <td className="px-3 py-3">{expenses.reduce((s,e) => s+Number(e.VATAmount),0).toLocaleString()}</td>
+                    <td className="px-3 py-3">{filteredExpenses.reduce((s,e) => s+Number(e.Amount),0).toLocaleString()}</td>
+                    <td className="px-3 py-3">{filteredExpenses.reduce((s,e) => s+Number(e.VATAmount),0).toLocaleString()}</td>
                     <td className="px-3 py-3 text-emerald-700">{grandTotal.toLocaleString()} {sar}</td>
                     <td />
                   </tr>
@@ -213,7 +222,7 @@ export default function ExpensesView() {
 
           {/* Mobile */}
           <div className="md:hidden space-y-3">
-            {expenses.map(e => (
+            {filteredExpenses.map(e => (
               <div key={e.ExpenseID} className="card">
                 <div className="flex justify-between mb-1">
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_COLOR[e.Category] || ''}`}>{e.Category}</span>
