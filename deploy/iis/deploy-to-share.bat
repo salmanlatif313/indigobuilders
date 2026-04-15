@@ -33,6 +33,16 @@ if errorlevel 1 (
   exit /b 1
 )
 
+echo [0/7] Bumping client version...
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "Set-Location '%SOURCE_ROOT%\client'; npm version patch --no-git-tag-version | Out-Null; " ^
+  "$v = (Get-Content package.json | ConvertFrom-Json).version; Write-Host \"Version bumped to $v\""
+if errorlevel 1 (
+  echo ERROR: Version bump failed.
+  goto :failed
+)
+echo.
+
 echo [1/7] Committing and pushing to GitHub...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$stamp = '%BACKUP_STAMP%'; " ^
