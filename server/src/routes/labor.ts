@@ -173,7 +173,7 @@ router.post('/import', requireRole('Admin', 'Finance', 'PM'), upload.single('fil
           changedBy:           req.user?.username,
         }
       );
-      inserted.push(result.recordset[0]?.LaborID);
+      inserted.push(result.recordset[0]?.LaborID as number);
     } catch (err: unknown) {
       const e = err as { number?: number };
       if (e.number === 2627) {
