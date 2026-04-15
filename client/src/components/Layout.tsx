@@ -110,13 +110,13 @@ export default function Layout({ children, page, onNavigate }: LayoutProps) {
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 end-0 z-30 w-64 flex flex-col transform transition-transform lg:translate-x-0 lg:static lg:z-auto ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}`} style={{ backgroundColor: '#0f2040' }}>
         {/* Logo */}
-        <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
-          <img src="/logo.png" alt="Indigo Builders" className="h-11 w-auto object-contain" />
-          {/* Lang toggle */}
+        <div className="relative border-b border-white/10">
+          <img src="/logo.png" alt="Indigo Builders" className="w-full object-contain block" />
+          {/* Lang toggle — overlaid on bottom corner */}
           <button
             onClick={toggleLang}
             title={lang === 'ar' ? 'Switch to English' : 'التبديل للعربية'}
-            className="text-white/70 hover:text-white text-xs font-medium bg-white/10 hover:bg-white/20 px-2 py-1 rounded transition-colors flex-shrink-0 ms-2"
+            className="absolute bottom-2 end-2 text-white/70 hover:text-white text-xs font-medium bg-black/30 hover:bg-black/50 px-2 py-1 rounded transition-colors"
           >
             {lang === 'ar' ? 'EN' : 'ع'}
           </button>
