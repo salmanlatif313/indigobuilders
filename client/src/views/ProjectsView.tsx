@@ -30,10 +30,14 @@ export default function ProjectsView() {
 
   const load = () => {
     setLoading(true);
-    Promise.all([api.getProjects(), api.getUsers()])
-      .then(([pr, us]) => { setProjects(pr.projects); setUsers(us.users.filter(u => u.IsActive)); })
+    api.getProjects()
+      .then(pr => setProjects(pr.projects))
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
+    // Users list only needed for the manager dropdown — fail silently for non-Admin
+    api.getUsers()
+      .then(us => setUsers(us.users.filter(u => u.IsActive)))
+      .catch(() => {});
   };
 
   useEffect(() => { load(); }, []);

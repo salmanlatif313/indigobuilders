@@ -226,7 +226,9 @@ SELECT
     l.BasicSalary, l.HousingAllowance, l.TransportAllowance, l.OtherAllowances,
     (l.BasicSalary + l.HousingAllowance + l.TransportAllowance + l.OtherAllowances) AS GrossSalary,
     l.IBAN, l.BankCode, l.GOSINumber, l.IqamaExpiry, l.IsActive,
-    p.ProjectName, p.ProjectCode
+    l.ProjectID,
+    ISNULL(p.ProjectName, '') AS ProjectName,
+    ISNULL(p.ProjectCode, '') AS ProjectCode
 FROM Labor l
 LEFT JOIN Projects p ON p.ProjectID = l.ProjectID;
 GO
