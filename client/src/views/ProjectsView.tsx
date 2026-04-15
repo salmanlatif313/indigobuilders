@@ -3,6 +3,7 @@ import { api, Project, ProjectFinancials, UserRow } from '../api';
 import { useAuth } from '../AuthContext';
 import { useLang } from '../LangContext';
 import { tr } from '../translations';
+import ChipFilter from '../components/ChipFilter';
 
 const STATUS_OPTIONS = ['Active', 'Completed', 'OnHold', 'Cancelled'];
 
@@ -24,6 +25,7 @@ export default function ProjectsView() {
   const [editId, setEditId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [financials, setFinancials] = useState<{ project: Project; data: ProjectFinancials } | null>(null);
   const [loadingFin, setLoadingFin] = useState(false);
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -45,10 +47,16 @@ export default function ProjectsView() {
   const canDelete = can('Admin');
 
   const filtered = projects.filter(p =>
-    p.ProjectName.toLowerCase().includes(search.toLowerCase()) ||
-    p.ProjectCode.toLowerCase().includes(search.toLowerCase()) ||
-    (p.ClientName || '').toLowerCase().includes(search.toLowerCase())
+    (!statusFilter || p.Status === statusFilter) &&
+    (p.ProjectName.toLowerCase().includes(search.toLowerCase()) ||
+     p.ProjectCode.toLowerCase().includes(search.toLowerCase()) ||
+     (p.ClientName || '').toLowerCase().includes(search.toLowerCase()))
   );
+
+  const statusChips = STATUS_OPTIONS.map(s => ({
+    value: s, label: s,
+    count: projects.filter(p => p.Status === s).length,
+  })).filter(c => c.count > 0);
 
   const openNew = () => { setForm(EMPTY); setEditId(null); setShowForm(true); };
   const openEdit = (p: Project) => { setForm({ ...p }); setEditId(p.ProjectID!); setShowForm(true); };
@@ -96,7 +104,10 @@ export default function ProjectsView() {
         {canEdit && <button className="btn-primary" onClick={openNew}>{T('newBtn')}</button>}
       </div>
 
-      <input className="input-field max-w-sm" placeholder={C('search')} value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+        <input className="input-field max-w-sm" placeholder={C('search')} value={search} onChange={e => setSearch(e.target.value)} />
+        <ChipFilter chips={statusChips} active={statusFilter} onChange={setStatusFilter} />
+      </div>
 
       {error && <div className="text-red-600 bg-red-50 rounded-lg px-4 py-3">{error}</div>}
 

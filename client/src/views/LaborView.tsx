@@ -4,6 +4,7 @@ import { api, Labor, Project } from '../api';
 import { useAuth } from '../AuthContext';
 import { useLang } from '../LangContext';
 import { tr } from '../translations';
+import ChipFilter from '../components/ChipFilter';
 
 const EMPTY: Partial<Labor> = {
   IqamaNumber: '', FullName: '', FullNameAr: '', NationalityCode: 'OTH',
@@ -25,6 +26,8 @@ export default function LaborView() {
   const [editId, setEditId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [natFilter, setNatFilter] = useState('');
+  const [activeFilter, setActiveFilter] = useState('');
   const [showImport, setShowImport] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
@@ -48,10 +51,30 @@ export default function LaborView() {
   useEffect(() => { load(); }, []);
 
   const filtered = labor.filter(l =>
-    l.FullName.toLowerCase().includes(search.toLowerCase()) ||
-    l.IqamaNumber.includes(search) ||
-    (l.JobTitle || '').toLowerCase().includes(search.toLowerCase())
+    (!natFilter    || (natFilter === 'SAU' ? l.NationalityCode === 'SAU' : l.NationalityCode !== 'SAU')) &&
+    (!activeFilter || (activeFilter === 'Active' ? l.IsActive : !l.IsActive)) &&
+    (l.FullName.toLowerCase().includes(search.toLowerCase()) ||
+     l.IqamaNumber.includes(search) ||
+     (l.JobTitle || '').toLowerCase().includes(search.toLowerCase()))
   );
+
+  const sauCount   = labor.filter(l => l.NationalityCode === 'SAU').length;
+  const nonSauCount = labor.filter(l => l.NationalityCode !== 'SAU').length;
+  const activeCount = labor.filter(l => l.IsActive).length;
+  const inactCount  = labor.filter(l => !l.IsActive).length;
+
+  const natChips = [
+    { value: 'SAU', label: lang === 'ar' ? 'سعودي' : 'Saudi', count: sauCount,
+      color: 'bg-green-100 text-green-800 ring-green-300' },
+    { value: 'Non-SAU', label: lang === 'ar' ? 'غير سعودي' : 'Non-Saudi', count: nonSauCount,
+      color: 'bg-blue-100 text-blue-800 ring-blue-300' },
+  ];
+  const activeChips = [
+    { value: 'Active', label: lang === 'ar' ? 'نشط' : 'Active', count: activeCount,
+      color: 'bg-emerald-100 text-emerald-800 ring-emerald-300' },
+    { value: 'Inactive', label: lang === 'ar' ? 'غير نشط' : 'Inactive', count: inactCount,
+      color: 'bg-gray-100 text-gray-600 ring-gray-300' },
+  ];
 
   const canEdit = can('Admin', 'Finance', 'PM');
   const canDelete = can('Admin');
@@ -137,7 +160,13 @@ export default function LaborView() {
         </div>
       </div>
 
-      <input className="input-field max-w-sm" placeholder={T('searchPlaceholder')} value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="flex flex-col gap-2">
+        <input className="input-field max-w-sm" placeholder={T('searchPlaceholder')} value={search} onChange={e => setSearch(e.target.value)} />
+        <div className="flex flex-wrap gap-4">
+          <ChipFilter chips={natChips}    active={natFilter}    onChange={setNatFilter} />
+          <ChipFilter chips={activeChips} active={activeFilter} onChange={setActiveFilter} />
+        </div>
+      </div>
 
       {error && <div className="text-red-600 bg-red-50 rounded-lg px-4 py-3">{error}</div>}
 

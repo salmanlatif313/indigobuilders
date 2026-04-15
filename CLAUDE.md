@@ -78,6 +78,12 @@ Copy `.env.example` to `.env`. Key variables:
 - **Sidebar is fixed height**: the root layout div must use `h-screen overflow-hidden`. The sidebar never scrolls with page content — only `<main>` scrolls (`overflow-y-auto`). Do not change this to `min-h-screen`.
 - **Brand colors**: Primary indigo `#0c2f5c` (`brand-900`), gold `#c19f3c` (`gold-500`). Always use Tailwind `brand-*` / `gold-*` classes; only use inline `style` when Tailwind purges the value.
 - **Credentials**: default admin login is `admin` / `admin`.
+- **Smart chip filters**: All data views use `<ChipFilter>` (`client/src/components/ChipFilter.tsx`) for instant client-side filtering. Chips show label + live count badge. Active chip scales up with ring-2. Clicking an active chip deselects it (toggle). Applied as:
+  - **InvoicesView** — ZatcaStatus chips (Draft / Reported / Cleared / Rejected)
+  - **ProjectsView** — Project Status chips (Active / Completed / OnHold — only non-zero counts shown)
+  - **LaborView** — Saudi/Non-Saudi nationality chips + Active/Inactive chips (two chip rows)
+  - **ExpensesView** — Category chips (Materials / Equipment / Subcontractor / Labor / Transport / Other); project + date range remain server-side
+- **Dashboard alerts panel**: Iqama expiry table is inner-scrollable (`maxHeight: 220px`, `overflow-y-auto`) so it never pushes down the rest of the dashboard.
 
 ---
 

@@ -14,6 +14,7 @@
 | v3.0    | 2026-04-01 | S. Latif      | Original PDF — initial SRS (BenaaConnect branding) |
 | v3.1    | 2026-04-14 | S. Latif + AI | Converted to Markdown. Rebranded to IndigoBuilders ERP. Gap analysis added. Status column added to all requirements. |
 | v3.2    | 2026-04-14 | S. Latif + AI | Implemented: PWA (vite-plugin-pwa + Workbox), TanStack Virtual (LaborView), full ZATCA UBL 2.1 XML + TLV QR generation, Engineer role read-only access. XML download endpoint added to InvoicesView. |
+| v3.3    | 2026-04-14 | S. Latif + AI | Smart chip filters added to all data views (ChipFilter component). Dashboard alerts panel made inner-scrollable. 1,460 seed records loaded. |
 
 ---
 
@@ -256,6 +257,7 @@ PaymentID, InvoiceID (FK), PaymentDate, Amount, PaymentMethod, Reference
 |---|---|---|
 | N+1 Prevention | All queries use JOINs or Views (Eager Loading) | ✅ All routes use Views |
 | Mobile Adaptive | Table-to-Card for all data tables | ✅ Every view has mobile card layout |
+| Smart Chip Filters | Instant client-side filtering with live count badges | ✅ ChipFilter component — Invoices, Projects, Labor, Expenses |
 | Offline / PWA | Service Worker caches assets for remote site access | ✅ vite-plugin-pwa + Workbox NetworkFirst |
 | Virtual Scrolling | TanStack Virtual for lists > 100 rows | ✅ Implemented in LaborView |
 | Brotli Compression | Server-side Brotli in addition to Gzip | ❌ Only Gzip currently |

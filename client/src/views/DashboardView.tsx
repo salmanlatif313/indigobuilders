@@ -83,7 +83,7 @@ export default function DashboardView() {
             </svg>
             {tr('iqamaAlert', 'title', lang)} ({iqamaAlerts.length})
           </h2>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight: '220px' }}>
             <table className="w-full text-sm">
               <tbody className="divide-y divide-amber-100">
                 {iqamaAlerts.map(a => (
