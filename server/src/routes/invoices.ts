@@ -11,6 +11,7 @@ interface InvoiceRow {
   InvoiceID: number; InvoiceNumber: string; InvoiceType: string; InvoiceDate: string;
   DueDate: string; ClientName: string; ClientVAT: string; SubTotal: number;
   VATAmount: number; RetentionAmount: number; TotalAmount: number;
+  TotalPaid: number; BalanceDue: number;
   ZatcaStatus: string; ZatcaUUID: string; ProjectName: string; ProjectCode: string; Notes: string;
 }
 
@@ -30,8 +31,8 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const rows = await runQuery<InvoiceRow>(
       `SELECT InvoiceID, InvoiceNumber, InvoiceType, InvoiceDate, DueDate, ClientName, ClientVAT,
-              SubTotal, VATAmount, RetentionAmount, TotalAmount, ZatcaStatus, ZatcaUUID,
-              ProjectName, ProjectCode
+              SubTotal, VATAmount, RetentionAmount, TotalAmount, TotalPaid, BalanceDue,
+              ZatcaStatus, ZatcaUUID, ProjectName, ProjectCode
        FROM View_InvoiceSummary ${where} ORDER BY InvoiceID DESC`,
       params
     );
