@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 
-set "TARGET_ROOT=\\IndigoBuilders.deltatechcorp.com\c$\IndigoBuilders"
+set "TARGET_ROOT=\\172.1.10.51\c$\indigobuilders"
 
 set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%\..\..") do set "SOURCE_ROOT=%%~fI"
@@ -151,10 +151,10 @@ echo Previous server build backup:
 echo   %TARGET_SERVER_BACKUP%
 echo.
 echo Next step on the server:
-echo   C:\IndigoBuilders\server-restart.bat
+echo   C:\indigobuilders\server-restart.bat
 echo.
 echo Manual equivalent:
-echo   cd C:\IndigoBuilders
+echo   cd C:\indigobuilders
 echo   pm2 restart indigobuilders-api
 echo   pm2 save
 echo.
