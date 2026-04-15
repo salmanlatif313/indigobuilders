@@ -44,6 +44,39 @@ router.get('/', async (_req: Request, res: Response) => {
       ),
     ]);
 
+    // Activity feed: last 15 changes across modules
+    const activity = await runQuery<{ Module: string; Description: string; ChangedBy: string; ChangeDate: string }>(
+      `SELECT TOP 15 Module, Description, ChangedBy,
+              CONVERT(NVARCHAR(19), ChangeDate, 120) AS ChangeDate
+       FROM (
+         SELECT 'Invoice' AS Module,
+                'Invoice ' + InvoiceNumber + ' — ' + ClientName AS Description,
+                ISNULL(ChangedBy,'system') AS ChangedBy, ChangeDate
+         FROM Invoices WHERE ChangeDate IS NOT NULL
+         UNION ALL
+         SELECT 'Labor',
+                'Employee ' + FullName + ' (' + IqamaNumber + ')',
+                ISNULL(ChangedBy,'system'), ChangeDate
+         FROM Labor WHERE ChangeDate IS NOT NULL
+         UNION ALL
+         SELECT 'Expense',
+                'Expense ' + Category + ': ' + Description,
+                ISNULL(ChangedBy,'system'), ChangeDate
+         FROM ProjectExpenses WHERE ChangeDate IS NOT NULL
+         UNION ALL
+         SELECT 'Project',
+                'Project ' + ProjectCode + ' — ' + ProjectName,
+                ISNULL(ChangedBy,'system'), ChangeDate
+         FROM Projects WHERE ChangeDate IS NOT NULL
+         UNION ALL
+         SELECT 'Payment',
+                'Payment ' + CAST(CAST(Amount AS INT) AS NVARCHAR(20)) + ' SAR for Invoice#' + CAST(InvoiceID AS NVARCHAR(10)),
+                ISNULL(ChangedBy,'system'), ChangeDate
+         FROM InvoicePayments WHERE ChangeDate IS NOT NULL
+       ) feed
+       ORDER BY ChangeDate DESC`
+    );
+
     res.json({
       summary: {
         projects: projects[0] || { TotalProjects: 0, ActiveProjects: 0 },
@@ -53,6 +86,7 @@ router.get('/', async (_req: Request, res: Response) => {
       recentInvoices,
       recentProjects,
       iqamaAlerts,
+      activity,
     });
   } catch (err) {
     console.error(err);

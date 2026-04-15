@@ -200,6 +200,23 @@ CREATE TABLE ProjectExpenses (
 GO
 
 -- =============================================================================
+-- INVOICE PAYMENTS
+-- =============================================================================
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'InvoicePayments')
+CREATE TABLE InvoicePayments (
+    PaymentID     INT PRIMARY KEY IDENTITY(1,1),
+    InvoiceID     INT NOT NULL REFERENCES Invoices(InvoiceID) ON DELETE CASCADE,
+    PaymentDate   DATE NOT NULL,
+    Amount        DECIMAL(18,2) NOT NULL,
+    PaymentMethod NVARCHAR(50) DEFAULT 'BankTransfer',  -- BankTransfer, Cheque, Cash, Online
+    Reference     NVARCHAR(200),
+    Notes         NVARCHAR(MAX),
+    ChangedBy     NVARCHAR(128),
+    ChangeDate    DATETIME DEFAULT GETDATE()
+);
+GO
+
+-- =============================================================================
 -- VIEWS
 -- =============================================================================
 CREATE OR ALTER VIEW View_LaborSummary AS
@@ -219,6 +236,8 @@ SELECT
     i.InvoiceID, i.InvoiceNumber, i.InvoiceType,
     i.InvoiceDate, i.DueDate, i.ClientName, i.ClientVAT,
     i.SubTotal, i.VATAmount, i.RetentionAmount, i.TotalAmount,
+    ISNULL((SELECT SUM(py.Amount) FROM InvoicePayments py WHERE py.InvoiceID = i.InvoiceID), 0) AS TotalPaid,
+    i.TotalAmount - ISNULL((SELECT SUM(py.Amount) FROM InvoicePayments py WHERE py.InvoiceID = i.InvoiceID), 0) AS BalanceDue,
     i.ZatcaStatus, i.ZatcaUUID,
     p.ProjectName, p.ProjectCode
 FROM Invoices i

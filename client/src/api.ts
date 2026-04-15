@@ -245,6 +245,7 @@ export interface DashboardData {
   recentInvoices: { InvoiceNumber: string; ClientName: string; TotalAmount: number; ZatcaStatus: string; InvoiceDate: string }[];
   recentProjects: { ProjectCode: string; ProjectName: string; Status: string; ChangeDate: string }[];
   iqamaAlerts: { LaborID: number; FullName: string; IqamaNumber: string; IqamaExpiry: string; DaysLeft: number; ProjectName: string }[];
+  activity: { Module: string; Description: string; ChangedBy: string; ChangeDate: string }[];
 }
 
 export interface Expense {

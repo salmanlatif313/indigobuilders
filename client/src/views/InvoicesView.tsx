@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { api, Invoice, InvoiceItem, CreateInvoiceInput, Payment, PAYMENT_METHODS } from '../api';
+import { api, Invoice, InvoiceItem, CreateInvoiceInput, Payment, PAYMENT_METHODS, Project } from '../api';
 import { useAuth } from '../AuthContext';
 import { useLang } from '../LangContext';
 import { tr } from '../translations';
@@ -33,6 +33,8 @@ export default function InvoicesView() {
   const [payForm, setPayForm] = useState({ paymentDate: new Date().toISOString().slice(0, 10), amount: '', paymentMethod: 'BankTransfer', reference: '', notes: '' });
   const [paySaving, setPaySaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectId, setProjectId] = useState<number | ''>('');
   const printRef = useRef<HTMLDivElement>(null);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -48,7 +50,10 @@ export default function InvoicesView() {
     api.getInvoices().then(r => setInvoices(r.invoices)).catch(e => setError(e.message)).finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    api.getProjects().then(r => setProjects(r.projects)).catch(() => {});
+  }, []);
 
   const filtered = invoices.filter(i =>
     i.InvoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
@@ -120,12 +125,13 @@ export default function InvoicesView() {
 
   const handleSave = async () => {
     if (!form.invoiceNumber || !form.clientName || !form.invoiceDate) { alert(T('required')); return; }
-    const payload: CreateInvoiceInput = { ...form, items };
+    const payload: CreateInvoiceInput = { ...form, items, projectID: projectId || undefined };
     setSaving(true);
     try {
       await api.createInvoice(payload);
       setShowForm(false);
       setForm({ ...EMPTY_FORM });
+      setProjectId('');
       setItems([{ Description: '', Quantity: 1, UnitPrice: 0, Discount: 0, VATRate: 15 }]);
       load();
     } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Error'); }
@@ -433,6 +439,14 @@ export default function InvoicesView() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">{T('dueDate')}</label>
                   <input type="date" className="input-field" value={form.dueDate}
                     onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{T('project')}</label>
+                  <select className="input-field" value={projectId}
+                    onChange={e => setProjectId(e.target.value ? parseInt(e.target.value) : '')}>
+                    <option value="">{lang === 'ar' ? '— بدون مشروع —' : '— No Project —'}</option>
+                    {projects.map(p => <option key={p.ProjectID} value={p.ProjectID}>{p.ProjectCode} — {p.ProjectName.slice(0, 40)}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">{T('vatRate')}</label>

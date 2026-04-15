@@ -26,7 +26,7 @@ export default function DashboardView() {
   if (error) return <div className="text-red-600 p-4">{error}</div>;
   if (!data) return null;
 
-  const { summary, recentInvoices, recentProjects, iqamaAlerts = [] } = data;
+  const { summary, recentInvoices, recentProjects, iqamaAlerts = [], activity = [] } = data;
   const sar = tr('common', 'sar', lang);
 
   const kpis = [
@@ -149,6 +149,42 @@ export default function DashboardView() {
           )}
         </div>
       </div>
+
+      {/* Activity Feed */}
+      {activity.length > 0 && (
+        <div className="card">
+          <h2 className="font-semibold text-gray-800 mb-4">
+            {lang === 'ar' ? 'سجل النشاط الأخير' : 'Recent Activity'}
+          </h2>
+          <div className="relative">
+            <div className="absolute start-3 top-0 bottom-0 w-px bg-gray-100" />
+            <div className="space-y-3 ps-8">
+              {activity.map((a, i) => {
+                const moduleColors: Record<string, string> = {
+                  Invoice: 'bg-brand-600', Labor: 'bg-emerald-500',
+                  Expense: 'bg-orange-500', Project: 'bg-violet-600', Payment: 'bg-green-600',
+                };
+                const color = moduleColors[a.Module] || 'bg-gray-400';
+                return (
+                  <div key={i} className="flex items-start gap-3">
+                    <div className={`absolute start-1 w-4 h-4 rounded-full ${color} flex items-center justify-center`} style={{ marginTop: '2px' }}>
+                      <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-800 truncate">{a.Description}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${color} text-white font-medium`}>{a.Module}</span>
+                        <span className="text-xs text-gray-400">{a.ChangedBy}</span>
+                        <span className="text-xs text-gray-300">{a.ChangeDate?.slice(0, 16).replace('T', ' ')}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
