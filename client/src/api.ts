@@ -35,7 +35,7 @@ export const api = {
   getRoles: () => request<{ roles: Role[] }>('GET', '/auth/roles'),
   getUsers: () => request<{ users: UserRow[]; count: number }>('GET', '/auth/users'),
   createUser: (data: CreateUserInput) => request<{ message: string }>('POST', '/auth/users', data),
-  updateUser: (id: number, data: Partial<UserRow>) => request<{ message: string }>('PUT', `/auth/users/${id}`, data),
+  updateUser: (id: number, data: UserUpdateInput) => request<{ message: string }>('PUT', `/auth/users/${id}`, data),
 
   // Dashboard
   getDashboard: () => request<DashboardData>('GET', '/dashboard'),
@@ -170,7 +170,8 @@ export interface AppUser {
   userId: number; username: string; fullName: string; email: string; roleId: number; roleName: string;
 }
 export interface Role { RoleID: number; RoleName: string; }
-export interface UserRow { UserID: number; Username: string; FullName: string; Email: string; RoleName: string; IsActive: boolean; }
+export interface UserRow { UserID: number; Username: string; FullName: string; Email: string; RoleID: number; RoleName: string; IsActive: boolean; }
+export interface UserUpdateInput { fullName?: string; email?: string; roleId?: number; isActive?: boolean; }
 export interface CreateUserInput { username: string; password: string; fullName: string; email: string; roleId: number; }
 
 export interface Project {

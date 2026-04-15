@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, UserRow, Role, CreateUserInput } from '../api';
+import { api, UserRow, Role, CreateUserInput, UserUpdateInput } from '../api';
 import { useLang } from '../LangContext';
 import { tr } from '../translations';
 
@@ -56,21 +56,24 @@ export default function UsersView() {
 
   const toggleActive = async (u: UserRow) => {
     try {
-      await api.updateUser(u.UserID, { ...u, IsActive: !u.IsActive });
+      await api.updateUser(u.UserID, { fullName: u.FullName, email: u.Email, roleId: u.RoleID, isActive: !u.IsActive } as UserUpdateInput);
       load();
     } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Error'); }
   };
 
   const openEdit = (u: UserRow) => {
     setEditUser(u);
-    setEditForm({ fullName: u.FullName || '', email: u.Email || '', roleId: roles.find(r => r.RoleName === u.RoleName)?.RoleID || 1 });
+    setEditForm({ fullName: u.FullName || '', email: u.Email || '', roleId: u.RoleID || roles.find(r => r.RoleName === u.RoleName)?.RoleID || 1 });
   };
 
   const handleEditSave = async () => {
     if (!editUser) return;
     setSaving(true);
     try {
-      await api.updateUser(editUser.UserID, { ...editUser, FullName: editForm.fullName, Email: editForm.email, IsActive: editUser.IsActive });
+      await api.updateUser(editUser.UserID, {
+        fullName: editForm.fullName, email: editForm.email,
+        roleId: editForm.roleId, isActive: editUser.IsActive,
+      });
       setEditUser(null);
       load();
     } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Error'); }

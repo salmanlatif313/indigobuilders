@@ -13,6 +13,7 @@
 |---------|------------|---------------|---------|
 | v3.0    | 2026-04-01 | S. Latif      | Original PDF — initial SRS (BenaaConnect branding) |
 | v3.1    | 2026-04-14 | S. Latif + AI | Converted to Markdown. Rebranded to IndigoBuilders ERP. Gap analysis added. Status column added to all requirements. |
+| v3.2    | 2026-04-14 | S. Latif + AI | Implemented: PWA (vite-plugin-pwa + Workbox), TanStack Virtual (LaborView), full ZATCA UBL 2.1 XML + TLV QR generation, Engineer role read-only access. XML download endpoint added to InvoicesView. |
 
 ---
 
@@ -44,8 +45,8 @@ operations while maintaining strict legal compliance with the Kingdom's digital 
 | Language Support | Arabic (RTL) + English — persisted to localStorage | ✅ Implemented |
 | Font | IBM Plex Sans Arabic | ✅ Configured in index.css |
 | Mobile Layouts | Table-to-Card adaptive for phones/tablets | ✅ All views have mobile card fallback |
-| Virtual Scrolling | TanStack Virtual for lists >100 rows | ❌ Not yet implemented |
-| Offline / PWA | Service Worker + asset caching for remote site access | ❌ Not yet implemented |
+| Virtual Scrolling | TanStack Virtual for lists >100 rows | ✅ Implemented in LaborView |
+| Offline / PWA | Service Worker + asset caching for remote site access | ✅ vite-plugin-pwa with Workbox NetworkFirst strategy |
 | Native Wrapper | Capacitor-ready: all browser APIs abstracted into services | ❌ Not yet implemented — browser APIs used directly |
 
 ### 2.2 Backend Stack
@@ -188,8 +189,9 @@ PaymentID, InvoiceID (FK), PaymentDate, Amount, PaymentMethod, Reference
 | Invoice CRUD | Full header + line items | ✅ |
 | ZATCA status workflow | Draft → Reported → Cleared / Rejected | ✅ |
 | UUID generation | Per invoice on creation | ✅ |
-| QR Code stub | Base64 TLV placeholder | ✅ |
-| UBL 2.1 XML generation | Stored in ZatcaXML (XML column) | ⚠️ Stub only — full UBL 2.1 structure not yet compliant |
+| QR Code (TLV) | ZATCA-compliant TLV Base64 — 5 fields (seller, VAT, timestamp, total, VAT amount) | ✅ Full ZATCA spec |
+| UBL 2.1 XML generation | Stored in ZatcaXML (XML column) | ✅ Full UBL 2.1 with UBLExtensions, ICV, PIH, seller/buyer, TaxTotal, lines |
+| XML download | GET /api/invoices/:id/xml — downloads .xml file | ✅ |
 | VAT 15% calculation | Auto-computed | ✅ |
 | Retention deduction | Configurable rate | ✅ |
 | Invoice print | Browser print dialog | ✅ |
@@ -254,8 +256,8 @@ PaymentID, InvoiceID (FK), PaymentDate, Amount, PaymentMethod, Reference
 |---|---|---|
 | N+1 Prevention | All queries use JOINs or Views (Eager Loading) | ✅ All routes use Views |
 | Mobile Adaptive | Table-to-Card for all data tables | ✅ Every view has mobile card layout |
-| Offline / PWA | Service Worker caches assets for remote site access | ❌ Not yet implemented |
-| Virtual Scrolling | TanStack Virtual for lists > 100 rows | ❌ Not yet implemented |
+| Offline / PWA | Service Worker caches assets for remote site access | ✅ vite-plugin-pwa + Workbox NetworkFirst |
+| Virtual Scrolling | TanStack Virtual for lists > 100 rows | ✅ Implemented in LaborView |
 | Brotli Compression | Server-side Brotli in addition to Gzip | ❌ Only Gzip currently |
 
 ---
@@ -278,15 +280,15 @@ PaymentID, InvoiceID (FK), PaymentDate, Amount, PaymentMethod, Reference
 
 ### 7.1 Gaps to Close (Prioritized)
 
-| Priority | Gap | Effort | Notes |
+| Priority | Gap | Effort | Status |
 |---|---|---|---|
-| HIGH | **ZATCA UBL 2.1 XML** — full compliant structure | Medium | Current stub passes schema but won't clear ZATCA sandbox |
-| HIGH | **PWA / Service Worker** — offline caching | Medium | Critical for site foremen with poor connectivity |
-| MEDIUM | **TanStack Virtual** — virtual scrolling | Low | Needed when Labor list exceeds 100 employees |
-| MEDIUM | **Brotli compression** | Low | Configure at IIS level or add shrink-ray middleware |
-| MEDIUM | **Capacitor abstraction layer** | High | Wrap localStorage, fetch, URL into abstract services for mobile |
-| LOW | **AWS Riyadh migration** | High | Infrastructure change — PDPL long-term requirement |
-| LOW | **Engineer role views** | Low | Engineers currently have no read-only view |
+| ~~HIGH~~ | ~~**ZATCA UBL 2.1 XML**~~ | ~~Medium~~ | ✅ **Done** — full UBL 2.1 + TLV QR, XML download endpoint |
+| ~~HIGH~~ | ~~**PWA / Service Worker**~~ | ~~Medium~~ | ✅ **Done** — vite-plugin-pwa, Workbox NetworkFirst, 4 MiB cache limit |
+| ~~MEDIUM~~ | ~~**TanStack Virtual**~~ | ~~Low~~ | ✅ **Done** — LaborView desktop table virtualised |
+| ~~LOW~~ | ~~**Engineer role views**~~ | ~~Low~~ | ✅ **Done** — Engineers see Dashboard + Projects (read-only) |
+| MEDIUM | **Brotli compression** | Low | ❌ Configure at IIS level (httpCompression / dynamic compression module) |
+| MEDIUM | **Capacitor abstraction layer** | High | ❌ Wrap localStorage, fetch, URL into abstract services for mobile |
+| LOW | **AWS Riyadh migration** | High | ❌ Infrastructure change — PDPL long-term requirement |
 
 ### 7.2 Built Beyond PRD (Additions)
 
@@ -311,14 +313,13 @@ These features were designed and implemented during development, not in the orig
 
 ## 8. Next Priorities
 
-Based on gap analysis, the recommended next build tasks in order:
+Items 1–3 and 5 from the original priority list are now complete.
 
-1. **PWA setup** — `vite-plugin-pwa`, `manifest.json`, Service Worker with asset caching
-2. **Full ZATCA UBL 2.1 XML** — replace stub with spec-compliant XML generation
-3. **TanStack Virtual** — virtual list for Labor and WPS Lines tables
-4. **Brotli** — enable at IIS level (httpCompression / dynamic compression module)
-5. **Engineer role** — read-only dashboard and project view for Engineer users
-6. **Capacitor abstraction** — wrap `localStorage`, `URL.createObjectURL`, `window.open` into service layer
+Remaining open items:
+
+1. **Brotli compression** — enable at IIS level (`httpCompression` dynamic module or `shrink-ray` middleware)
+2. **Capacitor abstraction** — wrap `localStorage`, `URL.createObjectURL`, `window.open` into a service layer for future mobile packaging
+3. **AWS Riyadh migration** — PDPL long-term compliance; infrastructure decision
 
 ---
 
