@@ -110,21 +110,13 @@ export default function Layout({ children, page, onNavigate }: LayoutProps) {
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 end-0 z-30 w-64 bg-brand-900 flex flex-col transform transition-transform lg:translate-x-0 lg:static lg:z-auto ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         {/* Logo */}
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-white/10">
-          <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16" />
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-white font-semibold text-sm leading-tight">IndigoBuilders</p>
-            <p className="text-brand-300 text-xs">ERP</p>
-          </div>
+        <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
+          <img src="/logo.png" alt="Indigo Builders" className="h-11 w-auto object-contain" />
           {/* Lang toggle */}
           <button
             onClick={toggleLang}
             title={lang === 'ar' ? 'Switch to English' : 'التبديل للعربية'}
-            className="text-brand-300 hover:text-white text-xs font-medium bg-white/10 hover:bg-white/20 px-2 py-1 rounded transition-colors flex-shrink-0"
+            className="text-white/70 hover:text-white text-xs font-medium bg-white/10 hover:bg-white/20 px-2 py-1 rounded transition-colors flex-shrink-0 ms-2"
           >
             {lang === 'ar' ? 'EN' : 'ع'}
           </button>
@@ -137,7 +129,7 @@ export default function Layout({ children, page, onNavigate }: LayoutProps) {
               key={item.key}
               onClick={() => { onNavigate(item.key); setSidebarOpen(false); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-start
-                ${page === item.key ? 'bg-white/20 text-white font-medium' : 'text-brand-200 hover:bg-white/10 hover:text-white'}`}
+                ${page === item.key ? 'bg-white/20 text-white font-semibold' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
             >
               {item.icon}
               <span className="flex-1">{label(item)}</span>
@@ -158,12 +150,12 @@ export default function Layout({ children, page, onNavigate }: LayoutProps) {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white text-sm font-medium truncate">{user?.fullName}</p>
-              <p className="text-brand-300 text-xs">{user?.roleName}</p>
+              <p className="text-white/50 text-xs">{user?.roleName}</p>
             </div>
           </div>
           <button
             onClick={() => setShowChangePwd(true)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-brand-200 hover:text-white hover:bg-white/10 rounded-lg text-sm transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg text-sm transition-colors"
           >
             <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
@@ -172,7 +164,7 @@ export default function Layout({ children, page, onNavigate }: LayoutProps) {
           </button>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 text-brand-200 hover:text-white hover:bg-red-500/20 rounded-lg text-sm transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 text-white/70 hover:text-white hover:bg-red-500/20 rounded-lg text-sm transition-colors"
           >
             <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -191,7 +183,7 @@ export default function Layout({ children, page, onNavigate }: LayoutProps) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="flex-1 font-semibold text-brand-900">IndigoBuilders ERP</span>
+          <img src="/logo.png" alt="Indigo Builders" className="h-8 w-auto object-contain flex-1" />
           <button onClick={toggleLang} className="text-xs font-medium text-gray-500 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition-colors">
             {lang === 'ar' ? 'EN' : 'ع'}
           </button>
