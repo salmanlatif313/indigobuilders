@@ -245,6 +245,15 @@ export default function InvoicesView() {
               <h2 className="font-semibold text-lg">{T('detailTitle')}: {detail.invoice.InvoiceNumber}</h2>
               <div className="flex gap-2">
                 <button onClick={handlePrint} className="btn-secondary text-xs">{T('printBtn')}</button>
+                {detail.invoice.ZatcaStatus !== 'Draft' && (
+                  <a
+                    href={`/api/invoices/${detail.invoice.InvoiceID}/xml`}
+                    download={`INV-${detail.invoice.InvoiceNumber}.xml`}
+                    className="btn-secondary text-xs"
+                  >
+                    {lang === 'ar' ? 'تحميل XML' : 'Download XML'}
+                  </a>
+                )}
                 <button onClick={() => setDetail(null)} className="text-gray-400 hover:text-gray-600">✕</button>
               </div>
             </div>

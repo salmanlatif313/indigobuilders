@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { api, Labor, Project } from '../api';
 import { useAuth } from '../AuthContext';
 import { useLang } from '../LangContext';
@@ -54,6 +55,20 @@ export default function LaborView() {
 
   const canEdit = can('Admin', 'Finance', 'PM');
   const canDelete = can('Admin');
+
+  // Virtual scrolling for desktop table (handles 100+ rows without DOM bloat)
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => tableScrollRef.current,
+    estimateSize: () => 48,
+    overscan: 8,
+  });
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
+  const paddingBottom = virtualRows.length > 0
+    ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
+    : 0;
 
   const openNew = () => { setForm(EMPTY); setEditId(null); setShowForm(true); };
   const openEdit = (l: Labor) => { setForm({ ...l }); setEditId(l.LaborID!); setShowForm(true); };
@@ -130,48 +145,57 @@ export default function LaborView() {
         <div className="text-center py-16 text-gray-400">{C('loading')}</div>
       ) : (
         <>
-          {/* Desktop */}
+          {/* Desktop — virtualized for large lists */}
           <div className="hidden md:block card overflow-hidden p-0">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  {[T('iqama'), T('fullName'), T('jobTitle'), T('nationality'), T('project'), T('grossSalary'), T('iqamaExpiry'), C('status'), C('actions')].map(h => (
-                    <th key={h} className="px-4 py-3 text-start font-medium text-gray-600">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filtered.map(l => (
-                  <tr key={l.LaborID} className="hover:bg-gray-50/50">
-                    <td className="px-4 py-3 font-mono text-xs text-brand-600">{l.IqamaNumber}</td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{l.FullName.slice(0, 50)}</td>
-                    <td className="px-4 py-3 text-gray-600">{l.JobTitle || '—'}</td>
-                    <td className="px-4 py-3">
-                      <span className={`font-mono text-xs px-1.5 py-0.5 rounded ${l.NationalityCode === 'SAU' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                        {l.NationalityCode}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 text-xs">{l.ProjectName || '—'}</td>
-                    <td className="px-4 py-3 font-medium">{Number(l.GrossSalary).toLocaleString()} {C('sar')}</td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {l.IqamaExpiry ? new Date(l.IqamaExpiry).toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-GB') : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={l.IsActive ? 'badge-active' : 'badge-inactive'}>
-                        {l.IsActive ? C('active') : C('inactive')}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        {canEdit && <button onClick={() => openEdit(l)} className="text-brand-600 hover:underline text-xs">{C('edit')}</button>}
-                        {canDelete && <button onClick={() => handleDelete(l.LaborID!)} className="text-red-500 hover:underline text-xs">{C('delete')}</button>}
-                      </div>
-                    </td>
+            <div ref={tableScrollRef} style={{ height: 'calc(100vh - 280px)', overflowY: 'auto' }}>
+              <table className="w-full text-sm border-collapse">
+                <thead className="bg-gray-50 border-b sticky top-0 z-10">
+                  <tr>
+                    {[T('iqama'), T('fullName'), T('jobTitle'), T('nationality'), T('project'), T('grossSalary'), T('iqamaExpiry'), C('status'), C('actions')].map(h => (
+                      <th key={h} className="px-4 py-3 text-start font-medium text-gray-600 bg-gray-50">{h}</th>
+                    ))}
                   </tr>
-                ))}
-                {filtered.length === 0 && <tr><td colSpan={9} className="text-center py-12 text-gray-400">{C('noData')}</td></tr>}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {paddingTop > 0 && <tr><td colSpan={9} style={{ height: paddingTop }} /></tr>}
+                  {filtered.length === 0
+                    ? <tr><td colSpan={9} className="text-center py-12 text-gray-400">{C('noData')}</td></tr>
+                    : virtualRows.map(vRow => {
+                        const l = filtered[vRow.index];
+                        return (
+                          <tr key={l.LaborID} className="hover:bg-gray-50/50 border-b border-gray-50" style={{ height: 48 }}>
+                            <td className="px-4 py-3 font-mono text-xs text-brand-600">{l.IqamaNumber}</td>
+                            <td className="px-4 py-3 font-medium text-gray-900">{l.FullName.slice(0, 50)}</td>
+                            <td className="px-4 py-3 text-gray-600">{l.JobTitle || '—'}</td>
+                            <td className="px-4 py-3">
+                              <span className={`font-mono text-xs px-1.5 py-0.5 rounded ${l.NationalityCode === 'SAU' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                                {l.NationalityCode}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 text-xs">{l.ProjectName || '—'}</td>
+                            <td className="px-4 py-3 font-medium">{Number(l.GrossSalary).toLocaleString()} {C('sar')}</td>
+                            <td className="px-4 py-3 text-gray-600">
+                              {l.IqamaExpiry ? new Date(l.IqamaExpiry).toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-GB') : '—'}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={l.IsActive ? 'badge-active' : 'badge-inactive'}>
+                                {l.IsActive ? C('active') : C('inactive')}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex gap-2">
+                                {canEdit && <button onClick={() => openEdit(l)} className="text-brand-600 hover:underline text-xs">{C('edit')}</button>}
+                                {canDelete && <button onClick={() => handleDelete(l.LaborID!)} className="text-red-500 hover:underline text-xs">{C('delete')}</button>}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                  }
+                  {paddingBottom > 0 && <tr><td colSpan={9} style={{ height: paddingBottom }} /></tr>}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Mobile */}

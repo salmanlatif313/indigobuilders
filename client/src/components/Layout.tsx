@@ -146,6 +146,11 @@ export default function Layout({ children, page, onNavigate }: LayoutProps) {
 
         {/* User + Logout */}
         <div className="px-3 py-4 border-t border-white/10 space-y-1">
+          <div className="px-3 pb-1">
+            <span className="text-white/30 text-[10px] font-mono tracking-wider">
+              v{__APP_VERSION__}
+            </span>
+          </div>
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="w-8 h-8 rounded-full bg-gold-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
               {user?.fullName?.charAt(0)?.toUpperCase() || 'U'}

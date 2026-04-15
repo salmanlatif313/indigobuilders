@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { runQuery, runQueryResult } from '../db';
 import { requireAuth, requireRole } from '../middleware/requireAuth';
+import { generateUBL21, generateZatcaQR } from '../utils/zatca';
 
 const router = Router();
 router.use(requireAuth);
@@ -99,26 +100,35 @@ router.post('/', requireRole('Admin', 'Finance'), async (req: Request, res: Resp
   const totalAmount = subTotal + vatAmount - retentionAmount;
   const zatcaUUID = uuidv4();
 
-  // Build minimal ZATCA QR (Base64 TLV stub — production requires full ZATCA SDK)
-  const qrData = Buffer.from(
-    JSON.stringify({ seller: 'Indigo Builders Co.', vatNo: '311234567890003', date: invoiceDate, total: totalAmount.toFixed(2), vat: vatAmount.toFixed(2) })
-  ).toString('base64');
+  // ZATCA-compliant TLV QR code + UBL 2.1 XML
+  const zatcaInvoiceData = {
+    invoiceNumber, zatcaUUID, invoiceType: invoiceType || 'Standard',
+    invoiceDate, supplyDate,
+    clientName, clientVAT, clientAddress,
+    subTotal, vatRate: vat, vatAmount, retentionAmount, totalAmount,
+    notes,
+  };
+  const qrData  = generateZatcaQR(zatcaInvoiceData);
+  const ublXML  = generateUBL21(zatcaInvoiceData, computedItems.map(it => ({
+    description: it.description, quantity: it.quantity, unitPrice: it.unitPrice,
+    discount: it.discount || 0, vatRate: it.vatRate, lineTotal: it.lineTotal,
+  })));
 
   try {
     const result = await runQueryResult(
       `INSERT INTO Invoices (InvoiceNumber, InvoiceType, ProjectID, ClientName, ClientVAT, ClientAddress,
          InvoiceDate, SupplyDate, DueDate, SubTotal, VATRate, VATAmount, RetentionRate, RetentionAmount,
-         TotalAmount, ZatcaStatus, ZatcaQRCode, ZatcaUUID, Notes, ChangedBy)
+         TotalAmount, ZatcaStatus, ZatcaQRCode, ZatcaXML, ZatcaUUID, Notes, ChangedBy)
        OUTPUT INSERTED.InvoiceID
        VALUES (@invoiceNumber, @invoiceType, @projectID, @clientName, @clientVAT, @clientAddress,
          @invoiceDate, @supplyDate, @dueDate, @subTotal, @vatRate, @vatAmount, @retentionRate, @retentionAmount,
-         @totalAmount, 'Draft', @qrData, @zatcaUUID, @notes, @changedBy)`,
+         @totalAmount, 'Draft', @qrData, @ublXML, @zatcaUUID, @notes, @changedBy)`,
       {
         invoiceNumber, invoiceType: invoiceType || 'Standard', projectID: projectID || null,
         clientName, clientVAT: clientVAT || null, clientAddress: clientAddress || null,
         invoiceDate, supplyDate: supplyDate || null, dueDate: dueDate || null,
         subTotal, vatRate: vat, vatAmount, retentionRate: ret, retentionAmount, totalAmount,
-        qrData, zatcaUUID, notes: notes || null, changedBy: req.user?.username,
+        qrData, ublXML, zatcaUUID, notes: notes || null, changedBy: req.user?.username,
       }
     );
     const invoiceId = result.recordset[0]?.InvoiceID as number;
@@ -137,6 +147,24 @@ router.post('/', requireRole('Admin', 'Finance'), async (req: Request, res: Resp
     const e = err as { number?: number };
     if (e.number === 2627) { res.status(409).json({ error: 'Invoice number already exists' }); }
     else { console.error(err); res.status(500).json({ error: 'Server error' }); }
+  }
+});
+
+// GET /api/invoices/:id/xml  — download UBL 2.1 XML
+router.get('/:id/xml', async (req: Request, res: Response) => {
+  try {
+    const rows = await runQuery<{ InvoiceNumber: string; ZatcaXML: string }>(
+      `SELECT InvoiceNumber, CAST(ZatcaXML AS NVARCHAR(MAX)) AS ZatcaXML FROM Invoices WHERE InvoiceID=@id`,
+      { id: parseInt(req.params.id) }
+    );
+    if (!rows[0]) { res.status(404).json({ error: 'Invoice not found' }); return; }
+    if (!rows[0].ZatcaXML) { res.status(404).json({ error: 'No XML generated for this invoice' }); return; }
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="INV-${rows[0].InvoiceNumber}.xml"`);
+    res.send(rows[0].ZatcaXML);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
