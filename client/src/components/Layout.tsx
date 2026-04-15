@@ -108,7 +108,7 @@ export default function Layout({ children, page, onNavigate }: LayoutProps) {
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 end-0 z-30 w-64 bg-brand-900 flex flex-col transform transition-transform lg:translate-x-0 lg:static lg:z-auto ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 end-0 z-30 w-64 flex flex-col transform transition-transform lg:translate-x-0 lg:static lg:z-auto ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}`} style={{ backgroundColor: '#0f2040' }}>
         {/* Logo */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
           <img src="/logo.png" alt="Indigo Builders" className="h-11 w-auto object-contain" />
@@ -129,7 +129,9 @@ export default function Layout({ children, page, onNavigate }: LayoutProps) {
               key={item.key}
               onClick={() => { onNavigate(item.key); setSidebarOpen(false); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-start
-                ${page === item.key ? 'bg-white/20 text-white font-semibold' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
+                ${page === item.key
+                  ? 'bg-gold-500/20 text-gold-400 font-semibold border-s-2 border-gold-500'
+                  : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
             >
               {item.icon}
               <span className="flex-1">{label(item)}</span>
@@ -145,7 +147,7 @@ export default function Layout({ children, page, onNavigate }: LayoutProps) {
         {/* User + Logout */}
         <div className="px-3 py-4 border-t border-white/10 space-y-1">
           <div className="flex items-center gap-3 px-3 py-2">
-            <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-gold-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
               {user?.fullName?.charAt(0)?.toUpperCase() || 'U'}
             </div>
             <div className="flex-1 min-w-0">
