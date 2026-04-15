@@ -320,6 +320,14 @@ export default function ProjectsView() {
                 </div>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{T('manager')}</label>
+                <select className="input-field" value={form.ManagerUserID || ''}
+                  onChange={e => setForm(f => ({ ...f, ManagerUserID: e.target.value ? parseInt(e.target.value) : undefined }))}>
+                  <option value="">{lang === 'ar' ? '— بدون مدير —' : '— No Manager —'}</option>
+                  {users.map(u => <option key={u.UserID} value={u.UserID}>{u.FullName} ({u.RoleName})</option>)}
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{C('status')}</label>
                 <select className="input-field" value={form.Status || 'Active'}
                   onChange={e => setForm(f => ({ ...f, Status: e.target.value }))}>

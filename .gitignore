@@ -10,3 +10,4 @@ client/dist
 client/.vite
 server/dist
 .DS_Store
+client/.vite/

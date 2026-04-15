@@ -15,7 +15,7 @@ set "TARGET_ENV_FILE=%TARGET_ROOT%\.env"
 
 echo.
 echo ==================================================
-echo IndigoBuilders deployment to %TARGET_ROOT%
+echo IndigoBuilders ERP  ^>  %TARGET_ROOT%
 echo ==================================================
 echo.
 
