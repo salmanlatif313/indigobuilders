@@ -101,14 +101,14 @@ export default function Layout({ children, page, onNavigate }: LayoutProps) {
   };
 
   return (
-    <div className="min-h-screen flex bg-gray-50" dir={dir}>
+    <div className="h-screen overflow-hidden flex bg-gray-50" dir={dir}>
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-20 bg-black/40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 end-0 z-30 w-64 flex flex-col transform transition-transform lg:translate-x-0 lg:static lg:z-auto ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}`} style={{ backgroundColor: '#0f2040' }}>
+      <aside className={`fixed inset-y-0 end-0 z-30 w-64 flex flex-col transform transition-transform lg:translate-x-0 lg:static lg:z-auto ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}`} style={{ backgroundColor: '#0c2f5c' }}>
         {/* Logo */}
         <div className="relative border-b border-white/10">
           <img src="/logo.png" alt="Indigo Builders" className="w-full object-contain block" />
