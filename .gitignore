@@ -7,5 +7,6 @@ dist
 .env.production.local
 *.log
 client/dist
+client/.vite
 server/dist
 .DS_Store
