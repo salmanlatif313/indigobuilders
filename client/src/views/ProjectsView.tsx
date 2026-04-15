@@ -30,10 +30,13 @@ export default function ProjectsView() {
 
   const load = () => {
     setLoading(true);
-    Promise.all([api.getProjects(), api.getUsers()])
-      .then(([pr, us]) => { setProjects(pr.projects); setUsers(us.users.filter(u => u.IsActive)); })
+    api.getProjects()
+      .then(pr => setProjects(pr.projects))
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
+    api.getUsers()
+      .then(us => setUsers(us.users.filter(u => u.IsActive)))
+      .catch(() => {}); // non-Admin roles get 403 — silent fail
   };
 
   useEffect(() => { load(); }, []);
@@ -323,6 +326,16 @@ export default function ProjectsView() {
                   {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
+              {users.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{T('manager')}</label>
+                  <select className="input-field" value={form.ManagerUserID || ''}
+                    onChange={e => setForm(f => ({ ...f, ManagerUserID: e.target.value ? Number(e.target.value) : undefined }))}>
+                    <option value="">{lang === 'ar' ? '— اختر —' : '— Select —'}</option>
+                    {users.map(u => <option key={u.UserID} value={u.UserID}>{u.FullName}</option>)}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{C('notes')}</label>
                 <textarea className="input-field" rows={3} value={form.Notes || ''}
