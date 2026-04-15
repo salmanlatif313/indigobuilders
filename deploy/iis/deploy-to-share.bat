@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 
-set "TARGET_ROOT=\\internal.deltatechcorp.com\c$\IndigoBuilders"
+set "TARGET_ROOT=\\IndigoBuilders.deltatechcorp.com\c$\IndigoBuilders"
 
 set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%\..\..") do set "SOURCE_ROOT=%%~fI"
