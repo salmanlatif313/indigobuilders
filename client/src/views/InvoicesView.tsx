@@ -192,8 +192,10 @@ export default function InvoicesView() {
                     <td className="px-4 py-3 text-gray-600">{inv.ProjectCode || '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{new Date(inv.InvoiceDate).toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-GB')}</td>
                     <td className="px-4 py-3 font-medium">{Number(inv.TotalAmount).toLocaleString()} {sar}</td>
-                    <td className={`px-4 py-3 font-medium ${Number(inv.BalanceDue) <= 0.01 ? 'text-green-600' : 'text-red-600'}`}>
-                      {Number(inv.BalanceDue) <= 0.01 ? '✓' : `${Number(inv.BalanceDue).toLocaleString()} ${sar}`}
+                    <td className={`px-4 py-3 font-medium ${(inv.BalanceDue != null ? Number(inv.BalanceDue) : Number(inv.TotalAmount)) <= 0.01 ? 'text-green-600' : 'text-red-600'}`}>
+                      {(inv.BalanceDue != null ? Number(inv.BalanceDue) : Number(inv.TotalAmount)) <= 0.01
+                        ? '✓'
+                        : `${(inv.BalanceDue != null ? Number(inv.BalanceDue) : Number(inv.TotalAmount)).toLocaleString()} ${sar}`}
                     </td>
                     <td className="px-4 py-3">{statusBadge(inv.ZatcaStatus)}</td>
                     <td className="px-4 py-3">
