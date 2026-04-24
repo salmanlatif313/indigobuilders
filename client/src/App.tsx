@@ -12,8 +12,9 @@ import WPSView from './views/WPSView';
 import ReportsView from './views/ReportsView';
 import ExpensesView from './views/ExpensesView';
 import ComplianceView from './views/ComplianceView';
+import PurchaseOrdersView from './views/PurchaseOrdersView';
 
-type Page = 'dashboard' | 'projects' | 'labor' | 'invoices' | 'expenses' | 'users' | 'wps' | 'reports' | 'compliance';
+type Page = 'dashboard' | 'projects' | 'labor' | 'invoices' | 'expenses' | 'users' | 'wps' | 'reports' | 'compliance' | 'purchase-orders';
 
 function AppInner() {
   const { user, loading } = useAuth();
@@ -38,7 +39,8 @@ function AppInner() {
     wps:       <WPSView />,
     expenses:   <ExpensesView />,
     reports:    <ReportsView />,
-    compliance: <ComplianceView />,
+    compliance:       <ComplianceView />,
+    'purchase-orders': <PurchaseOrdersView />,
   };
 
   return (

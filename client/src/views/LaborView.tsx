@@ -5,6 +5,7 @@ import { useAuth } from '../AuthContext';
 import { useLang } from '../LangContext';
 import { tr } from '../translations';
 import ChipFilter from '../components/ChipFilter';
+import { files } from '../services/files';
 
 const EMPTY: Partial<Labor> = {
   IqamaNumber: '', FullName: '', FullNameAr: '', NationalityCode: 'OTH',
@@ -131,12 +132,7 @@ export default function LaborView() {
   const downloadTemplate = () => {
     const csv = 'IqamaNumber,FullName,FullNameAr,NationalityCode,IBAN,BankCode,BasicSalary,HousingAllowance,TransportAllowance,OtherAllowances,GOSINumber,JobTitle,ProjectID,IqamaExpiry\n' +
                 '1234567890,Ahmed Ali,أحمد علي,SAU,SA0380000000608010167519,RJHI,5000,2000,500,0,,Construction Worker,,2027-12-31\n';
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'labor_import_template.csv';
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a); URL.revokeObjectURL(url);
+    files.downloadCSV(csv, 'labor_import_template.csv');
   };
 
   const fv = (key: keyof Labor) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>

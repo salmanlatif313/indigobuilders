@@ -4,6 +4,7 @@ import { useAuth } from '../AuthContext';
 import { useLang } from '../LangContext';
 import { tr } from '../translations';
 import ChipFilter from '../components/ChipFilter';
+import { browser } from '../services/browser';
 
 function statusBadge(s: string) {
   const cls: Record<string, string> = { Draft: 'badge-draft', Reported: 'badge-reported', Cleared: 'badge-cleared', Rejected: 'badge-rejected' };
@@ -115,34 +116,39 @@ export default function InvoicesView() {
     } catch (e: unknown) { alert(e instanceof Error ? e.message : 'Error'); }
   };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     const content = printRef.current?.innerHTML;
     if (!content) return;
-    const w = window.open('', '_blank');
-    if (!w) return;
-    const logoUrl = `${window.location.origin}/logo.png`;
-    w.document.write(`
-      <html><head><title>Invoice</title>
-      <style>
-        body{font-family:sans-serif;padding:24px;direction:${lang === 'ar' ? 'rtl' : 'ltr'}}
-        table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:start}
-        th{background:#f5f5f5}h2{margin-bottom:4px}.total{font-size:1.1em;font-weight:bold}
-        .print-logo{height:64px;object-fit:contain;display:block}
-      </style>
-      </head><body>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;border-bottom:2px solid #0c2f5c;padding-bottom:12px">
-          <img src="${logoUrl}" class="print-logo" alt="Indigo Builders" />
-          <div style="text-align:end;color:#555;font-size:12px">
-            <div style="font-size:18px;font-weight:bold;color:#0c2f5c">Indigo Builders Company</div>
-            <div>VAT: 311234567890003</div>
-            <div>Riyadh, Kingdom of Saudi Arabia</div>
-          </div>
+
+    // Fetch logo as base64 so it renders in the blank print window without network dependency
+    let logoSrc = '';
+    try {
+      const res = await fetch(`${window.location.origin}/logo.png`);
+      const blob = await res.blob();
+      logoSrc = await new Promise<string>(resolve => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+    } catch { /* logo unavailable — print without it */ }
+
+    const style = `
+      body{font-family:sans-serif;padding:24px}
+      table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px;text-align:start}
+      th{background:#f5f5f5}h2{margin-bottom:4px}.total{font-size:1.1em;font-weight:bold}
+      .print-logo{height:64px;object-fit:contain;display:block}
+    `;
+    const header = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;border-bottom:2px solid #0c2f5c;padding-bottom:12px">
+        ${logoSrc ? `<img src="${logoSrc}" class="print-logo" alt="Indigo Builders" />` : '<div></div>'}
+        <div style="text-align:end;color:#555;font-size:12px">
+          <div style="font-size:18px;font-weight:bold;color:#0c2f5c">Indigo Builders Company</div>
+          <div>VAT: 311234567890003</div>
+          <div>Riyadh, Kingdom of Saudi Arabia</div>
         </div>
-        ${content}
-      </body></html>`);
-    w.document.close();
-    w.focus();
-    setTimeout(() => { w.print(); w.close(); }, 300);
+      </div>
+    `;
+    browser.print(`<style>${style}</style>${header}${content}`, lang === 'ar' ? 'rtl' : 'ltr', 'Invoice');
   };
 
   const handleSave = async () => {

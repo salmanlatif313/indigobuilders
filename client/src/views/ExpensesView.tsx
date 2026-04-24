@@ -4,6 +4,7 @@ import { useAuth } from '../AuthContext';
 import { useLang } from '../LangContext';
 import { tr } from '../translations';
 import ChipFilter from '../components/ChipFilter';
+import { files } from '../services/files';
 
 const EMPTY: Partial<Expense> = {
   ProjectID: undefined, ExpenseDate: new Date().toISOString().slice(0, 10),
@@ -29,12 +30,7 @@ function downloadCSV(expenses: Expense[], sar: string) {
     (Number(e.Amount) + Number(e.VATAmount)).toFixed(2),
   ].join(','));
   const csv = [headers.join(','), ...rows].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `Expenses_${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
+  files.downloadCSV(csv, `Expenses_${new Date().toISOString().slice(0, 10)}.csv`);
 }
 
 export default function ExpensesView() {

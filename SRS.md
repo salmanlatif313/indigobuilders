@@ -15,6 +15,7 @@
 | v3.1    | 2026-04-14 | S. Latif + AI | Converted to Markdown. Rebranded to IndigoBuilders ERP. Gap analysis added. Status column added to all requirements. |
 | v3.2    | 2026-04-14 | S. Latif + AI | Implemented: PWA (vite-plugin-pwa + Workbox), TanStack Virtual (LaborView), full ZATCA UBL 2.1 XML + TLV QR generation, Engineer role read-only access. XML download endpoint added to InvoicesView. |
 | v3.3    | 2026-04-14 | S. Latif + AI | Smart chip filters added to all data views (ChipFilter component). Dashboard alerts panel made inner-scrollable. 1,460 seed records loaded. |
+| v3.4    | 2026-04-24 | S. Latif + AI | Blank screen fix (Vite 8 `define` → import pkg from package.json). Purchase Orders module added: full CRUD, email-based approval via SendGrid, status workflow (Draft→PendingApproval→Approved→Delivered), `PurchaseOrders` + `PurchaseOrderItems` + `PurchaseOrderApprovals` tables. |
 
 ---
 
@@ -48,7 +49,7 @@ operations while maintaining strict legal compliance with the Kingdom's digital 
 | Mobile Layouts | Table-to-Card adaptive for phones/tablets | ✅ All views have mobile card fallback |
 | Virtual Scrolling | TanStack Virtual for lists >100 rows | ✅ Implemented in LaborView |
 | Offline / PWA | Service Worker + asset caching for remote site access | ✅ vite-plugin-pwa with Workbox NetworkFirst strategy |
-| Native Wrapper | Capacitor-ready: all browser APIs abstracted into services | ❌ Not yet implemented — browser APIs used directly |
+| Native Wrapper | Capacitor-ready: all browser APIs abstracted into services | ✅ Implemented — `storage`, `browser`, `files` service layer wraps all browser APIs |
 
 ### 2.2 Backend Stack
 
@@ -57,7 +58,7 @@ operations while maintaining strict legal compliance with the Kingdom's digital 
 | Runtime | Node.js + Express + TypeScript (tsx dev, tsc build) | ✅ Implemented |
 | Auth | JWT (jsonwebtoken) — HS256, configurable expiry | ✅ Implemented |
 | Compression | Gzip (compression middleware) | ✅ Implemented |
-| Brotli Compression | shrink-ray or IIS Brotli module | ❌ Not yet — only Gzip active |
+| Brotli Compression | IIS httpCompression (static files) + Gzip for API responses | ✅ IIS web.config handles static Brotli; API uses Gzip (custom zlib middleware removed — conflicted with compression package) |
 | File Upload | multer (memory storage, 5MB limit) | ✅ Implemented (CSV import) |
 
 ### 2.3 Database
@@ -96,6 +97,9 @@ operations while maintaining strict legal compliance with the Kingdom's digital 
 | `InvoiceItems` | Line items per invoice | ✅ |
 | `InvoicePayments` | Payment receipts against invoices | ✅ |
 | `ProjectExpenses` | Project cost tracking | ✅ |
+| `PurchaseOrders` | PO header — vendor, amounts, status, approval tracking | ✅ |
+| `PurchaseOrderItems` | Line items per PO — qty, price, discount, VAT | ✅ |
+| `PurchaseOrderApprovals` | Email approval tokens (UUID, expiry, acted-at) | ✅ |
 
 ### 3.2 Views
 
@@ -149,6 +153,7 @@ PaymentID, InvoiceID (FK), PaymentDate, Amount, PaymentMethod, Reference
 | Payments | CRUD | CRUD | — | — |
 | Expenses | CRUD | CRUD | CRUD | — |
 | WPS | CRUD | CRUD | — | — |
+| Purchase Orders | CRUD + approve | CRUD + approve | Create/Edit | — |
 | Reports | Read | Read | Read | — |
 | Compliance | Read | Read | Read | — |
 
@@ -209,7 +214,44 @@ PaymentID, InvoiceID (FK), PaymentDate, Amount, PaymentMethod, Reference
 | Delete payment | Admin/Finance only | ✅ |
 | Balance due column | In invoice list | ✅ |
 
-### 4.7 Expenses
+### 4.7 Purchase Orders
+
+| Feature | Detail | Status |
+|---|---|---|
+| PO CRUD | Create / edit / delete — Draft only editable | ✅ |
+| Line items | Description, Qty, Unit Price, Discount, VAT rate per line | ✅ |
+| Totals | Auto-computed Subtotal + VAT + Shipping = Total | ✅ |
+| Status workflow | Draft → PendingApproval → Approved → Delivered / Cancelled / Rejected | ✅ |
+| Email-based approval | Submit PO → SendGrid emails all Admin+Finance users with Approve/Reject links | ✅ |
+| Approval tokens | UUID tokens stored in `PurchaseOrderApprovals`, valid 7 days | ✅ |
+| Token click | GET `/api/purchase-orders/action/:token` — validates, updates status, returns HTML confirmation | ✅ |
+| Submitter notification | On approval/rejection, SendGrid notifies the submitter | ✅ |
+| Project linkage | Optional link to project | ✅ |
+| Chip filters | Status chips (Draft / PendingApproval / Approved / Delivered / Cancelled / Rejected) | ✅ |
+| CSV export | Client-side blob download | ✅ |
+| Detail modal | View full PO with line items and totals | ✅ |
+| Role permissions | Create/Edit: Admin, Finance, PM. Delete: Admin, Finance. Admin override status | ✅ |
+
+**Role permissions — Purchase Orders:**
+
+| Action | Admin | Finance | PM | Engineer |
+|---|---|---|---|---|
+| View | ✅ | ✅ | ✅ | — |
+| Create / Edit Draft | ✅ | ✅ | ✅ | — |
+| Submit for Approval | ✅ | ✅ | ✅ | — |
+| Delete (Draft/Rejected/Cancelled) | ✅ | ✅ | — | — |
+| Mark Delivered / Cancel | ✅ | — | — | — |
+| Approve via email link | any Admin/Finance email recipient | | | |
+
+**Email env vars required:**
+```
+SENDGRID_API_KEY=SG.xxx
+SENDGRID_FROM_EMAIL=erp@indigobuilders.sa
+SENDGRID_FROM_NAME=IndigoBuilders ERP
+APP_URL=https://indigobuilders.deltatechcorp.com
+```
+
+### 4.8 Expenses
 
 | Feature | Detail | Status |
 |---|---|---|
@@ -219,7 +261,7 @@ PaymentID, InvoiceID (FK), PaymentDate, Amount, PaymentMethod, Reference
 | CSV export | Client-side | ✅ |
 | Project linkage | Optional | ✅ |
 
-### 4.8 Compliance & Alerts
+### 4.9 Compliance & Alerts
 
 | Alert Type | Detail | Status |
 |---|---|---|
@@ -231,7 +273,7 @@ PaymentID, InvoiceID (FK), PaymentDate, Amount, PaymentMethod, Reference
 | Overdue invoices | > 30 days past due date | ✅ |
 | Alert badge in sidebar | Red count bubble | ✅ |
 
-### 4.9 Reports
+### 4.10 Reports
 
 | Report | Detail | Status |
 |---|---|---|
@@ -239,7 +281,7 @@ PaymentID, InvoiceID (FK), PaymentDate, Amount, PaymentMethod, Reference
 | Invoice aging | Current / 1-30 / 31-60 / 61-90 / 90+ days | ✅ |
 | Labor by project | Headcount, Saudi/Non-Saudi split, salary totals | ✅ |
 
-### 4.10 Dashboard
+### 4.11 Dashboard
 
 | Feature | Detail | Status |
 |---|---|---|
@@ -260,7 +302,7 @@ PaymentID, InvoiceID (FK), PaymentDate, Amount, PaymentMethod, Reference
 | Smart Chip Filters | Instant client-side filtering with live count badges | ✅ ChipFilter component — Invoices, Projects, Labor, Expenses |
 | Offline / PWA | Service Worker caches assets for remote site access | ✅ vite-plugin-pwa + Workbox NetworkFirst |
 | Virtual Scrolling | TanStack Virtual for lists > 100 rows | ✅ Implemented in LaborView |
-| Brotli Compression | Server-side Brotli in addition to Gzip | ❌ Only Gzip currently |
+| Brotli Compression | IIS static Brotli + Gzip for API | ✅ IIS web.config httpCompression for static assets; API responses use Gzip |
 
 ---
 
@@ -288,11 +330,18 @@ PaymentID, InvoiceID (FK), PaymentDate, Amount, PaymentMethod, Reference
 | ~~HIGH~~ | ~~**PWA / Service Worker**~~ | ~~Medium~~ | ✅ **Done** — vite-plugin-pwa, Workbox NetworkFirst, 4 MiB cache limit |
 | ~~MEDIUM~~ | ~~**TanStack Virtual**~~ | ~~Low~~ | ✅ **Done** — LaborView desktop table virtualised |
 | ~~LOW~~ | ~~**Engineer role views**~~ | ~~Low~~ | ✅ **Done** — Engineers see Dashboard + Projects (read-only) |
-| MEDIUM | **Brotli compression** | Low | ❌ Configure at IIS level (httpCompression / dynamic compression module) |
-| MEDIUM | **Capacitor abstraction layer** | High | ❌ Wrap localStorage, fetch, URL into abstract services for mobile |
+| ~~MEDIUM~~ | ~~**Brotli compression**~~ | ~~Low~~ | ✅ **Done** — IIS web.config httpCompression for static assets; API uses Gzip (zlib middleware removed — conflicted with compression package) |
+| ~~MEDIUM~~ | ~~**Capacitor abstraction layer**~~ | ~~High~~ | ✅ **Done** — `storage`, `browser`, `files` services wrap all browser APIs across 7 files |
 | LOW | **AWS Riyadh migration** | High | ❌ Infrastructure change — PDPL long-term requirement |
 
 ### 7.2 Built Beyond PRD (Additions)
+
+| Feature | Description |
+|---|---|
+| **Purchase Orders** | Full PO module — CRUD, line items, email-based approval via SendGrid, status workflow, chip filters |
+| **Blank screen fix** | Vite 8 broke `define` replacement in dev mode; fixed by importing version from package.json |
+
+### 7.3 Original Beyond-PRD Features
 
 These features were designed and implemented during development, not in the original SRS:
 
@@ -315,13 +364,11 @@ These features were designed and implemented during development, not in the orig
 
 ## 8. Next Priorities
 
-Items 1–3 and 5 from the original priority list are now complete.
+All priority items are now complete. The only remaining infrastructure item is:
 
-Remaining open items:
-
-1. **Brotli compression** — enable at IIS level (`httpCompression` dynamic module or `shrink-ray` middleware)
-2. **Capacitor abstraction** — wrap `localStorage`, `URL.createObjectURL`, `window.open` into a service layer for future mobile packaging
-3. **AWS Riyadh migration** — PDPL long-term compliance; infrastructure decision
+1. ~~**Brotli compression**~~ — ✅ Done (Node zlib middleware + IIS web.config)
+2. ~~**Capacitor abstraction**~~ — ✅ Done (`storage`, `browser`, `files` service layer)
+3. **AWS Riyadh migration** — PDPL long-term compliance; infrastructure decision (future)
 
 ---
 

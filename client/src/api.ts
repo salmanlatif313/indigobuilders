@@ -1,7 +1,10 @@
+import { storage } from './services/storage';
+import { files } from './services/files';
+
 const BASE = '/api';
 
 function getToken(): string | null {
-  return localStorage.getItem('ib_token');
+  return storage.get('ib_token');
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -16,8 +19,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   });
 
   if (res.status === 401) {
-    localStorage.removeItem('ib_token');
-    localStorage.removeItem('ib_user');
+    storage.remove('ib_token');
+    storage.remove('ib_user');
     window.location.href = '/';
     throw new Error('Unauthorized');
   }
@@ -60,21 +63,9 @@ export const api = {
   deleteLabor: (id: number) => request<{ message: string }>('DELETE', `/labor/${id}`),
   downloadWPS: (month: string) => {
     const token = getToken();
-    const url = `${BASE}/labor/wps/generate?month=${month}`;
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `WPS_${month}_IndigoBuilders.sif`;
-    // Add auth header via fetch + blob
-    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${BASE}/labor/wps/generate?month=${month}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.blob())
-      .then(blob => {
-        const blobUrl = URL.createObjectURL(blob);
-        a.href = blobUrl;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(blobUrl);
-      });
+      .then(blob => files.download(blob, `WPS_${month}_IndigoBuilders.sif`));
   },
 
   // WPS Payroll
@@ -89,13 +80,7 @@ export const api = {
     const token = getToken();
     fetch(`${BASE}/wps/${id}/sif`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.blob())
-      .then(blob => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = fileName;
-        document.body.appendChild(a); a.click();
-        document.body.removeChild(a); URL.revokeObjectURL(url);
-      });
+      .then(blob => files.download(blob, fileName));
   },
 
   // Compliance
@@ -151,6 +136,28 @@ export const api = {
       return data as { message: string; inserted: number; skipped: { row: number; reason: string }[] };
     });
   },
+
+  // Purchase Orders
+  getPurchaseOrders: (params?: { projectId?: number; status?: string; from?: string; to?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.projectId) qs.set('projectId', String(params.projectId));
+    if (params?.status)    qs.set('status', params.status);
+    if (params?.from)      qs.set('from', params.from);
+    if (params?.to)        qs.set('to', params.to);
+    return request<{ purchaseOrders: PurchaseOrder[]; count: number }>('GET', `/purchase-orders?${qs}`);
+  },
+  getPurchaseOrder: (id: number) =>
+    request<{ purchaseOrder: PurchaseOrder; items: POItem[] }>('GET', `/purchase-orders/${id}`),
+  createPurchaseOrder: (data: CreatePOInput) =>
+    request<{ message: string; poId: number; poNumber: string }>('POST', '/purchase-orders', data),
+  updatePurchaseOrder: (id: number, data: Partial<CreatePOInput>) =>
+    request<{ message: string }>('PUT', `/purchase-orders/${id}`, data),
+  submitPurchaseOrder: (id: number) =>
+    request<{ message: string; emailsSent: number }>('PUT', `/purchase-orders/${id}/submit`, {}),
+  updatePOStatus: (id: number, status: string) =>
+    request<{ message: string }>('PUT', `/purchase-orders/${id}/status`, { status }),
+  deletePurchaseOrder: (id: number) =>
+    request<{ message: string }>('DELETE', `/purchase-orders/${id}`),
 
   // Invoices
   getInvoices: (params?: { projectId?: number; status?: string }) => {
@@ -262,6 +269,36 @@ export interface ExpenseInput {
 }
 
 export const EXPENSE_CATEGORIES = ['Materials', 'Equipment', 'Subcontractor', 'Labor', 'Transport', 'Other'];
+
+export interface PurchaseOrder {
+  PurchaseOrderID?: number; PONumber: string; ProjectID: number | null;
+  ProjectCode: string; ProjectName: string;
+  VendorName: string; VendorEmail: string; VendorPhone: string;
+  VendorVAT: string; VendorAddress: string;
+  OrderDate: string; ExpectedDeliveryDate: string; DeliveryAddress: string;
+  SubTotal: number; VATRate: number; VATAmount: number;
+  ShippingCost: number; TotalAmount: number;
+  Status: string; PaymentTerms: string;
+  ApprovedBy: string; ApprovedDate: string; Notes: string;
+  ChangedBy: string; ChangeDate: string;
+}
+
+export interface POItem {
+  LineID?: number; PurchaseOrderID?: number;
+  Description: string; Quantity: number; UnitPrice: number;
+  Discount: number; VATRate: number; LineTotal: number;
+}
+
+export interface CreatePOInput {
+  poNumber: string; projectID?: number;
+  vendorName: string; vendorEmail?: string; vendorPhone?: string;
+  vendorVAT?: string; vendorAddress?: string;
+  orderDate: string; expectedDeliveryDate?: string; deliveryAddress?: string;
+  vatRate?: number; shippingCost?: number; paymentTerms?: string; notes?: string;
+  items: { description: string; quantity: number; unitPrice: number; discount?: number; vatRate?: number }[];
+}
+
+export const PO_STATUSES = ['Draft', 'PendingApproval', 'Approved', 'Delivered', 'Cancelled', 'Rejected'];
 
 export interface GosiRow {
   LaborID: number; IqamaNumber: string; FullName: string; FullNameAr: string;

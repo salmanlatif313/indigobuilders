@@ -13,7 +13,15 @@
       "Bash(curl:*)",
       "Bash(findstr /n \"HstryUser detail-footer modified\" \"C:\\\\Projects\\\\InternalPortal\\\\client\\\\src\\\\views\\\\InvoiceDetailView.tsx\")",
       "Bash(findstr:*)",
-      "Bash(./server-restart.bat:*)"
+      "Bash(./server-restart.bat:*)",
+      "Bash(npx tsx *)",
+      "Bash(tasklist *)",
+      "PowerShell(pm2 list *)",
+      "PowerShell(& \"C:\\\\Users\\\\Administrator\\\\AppData\\\\Roaming\\\\npm\\\\pm2.cmd\" list 2>&1)",
+      "Bash(pm2 list *)",
+      "Bash(npx pm2 *)",
+      "Bash(taskkill *)",
+      "Bash(netstat -ano)"
     ]
   }
 }

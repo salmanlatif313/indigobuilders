@@ -3,6 +3,7 @@ import { api, WPSRun, WPSLine } from '../api';
 import { useAuth } from '../AuthContext';
 import { useLang } from '../LangContext';
 import { tr } from '../translations';
+import { files } from '../services/files';
 
 function downloadPayrollCSV(run: WPSRun, lines: WPSLine[], sar: string) {
   const headers = ['Name', 'Iqama', 'IBAN', 'Basic', 'Housing', 'Transport', 'Other', 'Deductions', `Net (${sar})`];
@@ -12,12 +13,7 @@ function downloadPayrollCSV(run: WPSRun, lines: WPSLine[], sar: string) {
     l.OtherAllowances, l.Deductions, l.NetSalary,
   ].join(','));
   const csv = [headers.join(','), ...rows].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `Payroll_${run.PayrollMonth}.csv`;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
+  files.downloadCSV(csv, `Payroll_${run.PayrollMonth}.csv`);
 }
 
 function statusBadge(s: string) {

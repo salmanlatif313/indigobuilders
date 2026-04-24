@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
+import { storage } from './services/storage';
 
 type Lang = 'ar' | 'en';
 
@@ -11,12 +12,12 @@ interface LangContextType {
 const LangContext = createContext<LangContextType | null>(null);
 
 export function LangProvider({ children }: { children: ReactNode }) {
-  const [lang, setLang] = useState<Lang>(() => (localStorage.getItem('ib_lang') as Lang) || 'ar');
+  const [lang, setLang] = useState<Lang>(() => (storage.get('ib_lang') as Lang) || 'ar');
 
   const toggleLang = () => {
     setLang(l => {
       const next = l === 'ar' ? 'en' : 'ar';
-      localStorage.setItem('ib_lang', next);
+      storage.set('ib_lang', next);
       document.documentElement.setAttribute('lang', next);
       document.documentElement.setAttribute('dir', next === 'ar' ? 'rtl' : 'ltr');
       return next;
