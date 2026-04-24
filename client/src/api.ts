@@ -25,6 +25,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     throw new Error('Unauthorized');
   }
 
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    throw new Error(`Server error (${res.status}) — API returned non-JSON response. Check that the server is running.`);
+  }
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Request failed');
   return data as T;
@@ -246,12 +250,14 @@ export interface WPSLine {
 
 export interface DashboardData {
   summary: {
-    projects: { TotalProjects: number; ActiveProjects: number };
-    labor: { TotalLabor: number; ActiveLabor: number };
-    invoices: { TotalInvoices: number; TotalValue: number; DraftCount: number; ClearedCount: number };
+    projects:       { TotalProjects: number; ActiveProjects: number };
+    labor:          { TotalLabor: number; ActiveLabor: number };
+    invoices:       { TotalInvoices: number; TotalValue: number; DraftCount: number; ClearedCount: number };
+    purchaseOrders: { TotalPOs: number; TotalValue: number; PendingCount: number; ApprovedCount: number; DraftCount: number };
   };
   recentInvoices: { InvoiceNumber: string; ClientName: string; TotalAmount: number; ZatcaStatus: string; InvoiceDate: string }[];
   recentProjects: { ProjectCode: string; ProjectName: string; Status: string; ChangeDate: string }[];
+  recentPOs:      { PONumber: string; VendorName: string; TotalAmount: number; Status: string; OrderDate: string; ProjectCode: string }[];
   iqamaAlerts: { LaborID: number; FullName: string; IqamaNumber: string; IqamaExpiry: string; DaysLeft: number; ProjectName: string }[];
   activity: { Module: string; Description: string; ChangedBy: string; ChangeDate: string }[];
 }

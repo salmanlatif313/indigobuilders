@@ -40,6 +40,12 @@ const translations = {
     recentProjects: { ar: 'أحدث المشاريع',  en: 'Recent Projects' },
     noInvoices:     { ar: 'لا توجد فواتير', en: 'No invoices' },
     noProjects:     { ar: 'لا توجد مشاريع', en: 'No projects' },
+    totalPOs:       { ar: 'أوامر الشراء',   en: 'Purchase Orders' },
+    pendingApproval:{ ar: 'بانتظار الاعتماد', en: 'pending approval' },
+    recentPOs:      { ar: 'أحدث أوامر الشراء', en: 'Recent Purchase Orders' },
+    noPOs:          { ar: 'لا توجد أوامر شراء', en: 'No purchase orders' },
+    poValue:        { ar: 'قيمة أوامر الشراء', en: 'PO Value' },
+    approved:       { ar: 'معتمد',           en: 'approved' },
   },
   projects: {
     title:         { ar: 'المشاريع',         en: 'Projects' },
