@@ -4,6 +4,7 @@ import { useLang } from '../LangContext';
 import { api } from '../api';
 import { tr } from '../translations';
 import { browser } from '../services/browser';
+import { version as appVersion } from '../../package.json';
 
 interface NavItem {
   key: string;
@@ -154,7 +155,7 @@ export default function Layout({ children, page, onNavigate }: LayoutProps) {
         <div className="px-3 py-4 border-t border-white/10 space-y-1">
           <div className="px-3 pb-1">
             <span className="text-white/30 text-[10px] font-mono tracking-wider">
-              v{__APP_VERSION__}
+              v{appVersion}
             </span>
           </div>
           <div className="flex items-center gap-3 px-3 py-2">
