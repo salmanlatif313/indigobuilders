@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code when working in this repository.
 
 ---
--save all the prompts to prompt.txt
+-save all the prompts to prompt.md
 ## Project Overview
 
 IndigoBuilders ERP is an internal business portal for Indigo Builders Company,
@@ -91,6 +91,24 @@ Copy `.env.example` to `.env`. Key variables:
 
 - **ZATCA Phase 2**: UBL 2.1 XML generation, QR code, clearance status on Invoices
 - **WPS v3.1**: SIF file generation from Labor + PayrollRuns tables
+
+---
+
+## Purchase Orders Module
+
+- **Route**: `server/src/routes/purchase-orders.ts` → mounted at `/api/purchase-orders`
+- **View**: `client/src/views/PurchaseOrdersView.tsx`
+- **Email utility**: `server/src/utils/email.ts` — uses `@sendgrid/mail`
+- **Tables**: `PurchaseOrders`, `PurchaseOrderItems`, `PurchaseOrderApprovals`
+- **Status workflow**: `Draft` → `PendingApproval` → `Approved` → `Delivered` (or `Cancelled` / `Rejected`)
+- **Approval**: Submitting a PO emails all active Admin+Finance users via SendGrid with signed UUID tokens. Clicking the link in the email calls `GET /api/purchase-orders/action/:token` (no auth required) which validates the token, updates status, and returns an HTML confirmation page.
+- **Required env vars**: `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `SENDGRID_FROM_NAME`, `APP_URL`
+
+---
+
+## Known Issues / Fixes
+
+- **Vite 8 `define` bug**: `__APP_VERSION__` was not replaced in dev mode. Fixed in `client/vite.config.ts` by importing `pkg` from `./package.json` directly instead of using `process.env.npm_package_version`.
 
 ---
 

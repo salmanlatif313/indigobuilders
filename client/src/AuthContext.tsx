@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { AppUser, api } from './api';
+import { storage } from './services/storage';
 
 interface AuthContextType {
   user: AppUser | null;
@@ -16,8 +17,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem('ib_user');
-    const token = localStorage.getItem('ib_token');
+    const stored = storage.get('ib_user');
+    const token = storage.get('ib_token');
     if (stored && token) {
       setUser(JSON.parse(stored) as AppUser);
     }
@@ -26,14 +27,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (username: string, password: string) => {
     const res = await api.login(username, password);
-    localStorage.setItem('ib_token', res.token);
-    localStorage.setItem('ib_user', JSON.stringify(res.user));
+    storage.set('ib_token', res.token);
+    storage.set('ib_user', JSON.stringify(res.user));
     setUser(res.user);
   };
 
   const logout = () => {
-    localStorage.removeItem('ib_token');
-    localStorage.removeItem('ib_user');
+    storage.remove('ib_token');
+    storage.remove('ib_user');
     setUser(null);
   };
 

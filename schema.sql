@@ -278,3 +278,66 @@ GO
 
 PRINT 'IndigoBuilders ERP schema applied successfully.';
 GO
+
+-- =============================================================================
+-- PURCHASE ORDERS (email-based approval via SendGrid)
+-- =============================================================================
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'PurchaseOrders')
+CREATE TABLE PurchaseOrders (
+    PurchaseOrderID    INT           PRIMARY KEY IDENTITY(1,1),
+    PONumber           NVARCHAR(50)  NOT NULL UNIQUE,
+    ProjectID          INT           NULL REFERENCES Projects(ProjectID),
+    VendorName         NVARCHAR(200) NOT NULL,
+    VendorEmail        NVARCHAR(200) NULL,
+    VendorPhone        NVARCHAR(50)  NULL,
+    VendorVAT          NVARCHAR(20)  NULL,
+    VendorAddress      NVARCHAR(500) NULL,
+    OrderDate          DATE          NOT NULL DEFAULT GETDATE(),
+    ExpectedDeliveryDate DATE        NULL,
+    DeliveryAddress    NVARCHAR(500) NULL,
+    SubTotal           DECIMAL(18,2) DEFAULT 0,
+    VATRate            DECIMAL(5,2)  DEFAULT 15.00,
+    VATAmount          DECIMAL(18,2) DEFAULT 0,
+    ShippingCost       DECIMAL(18,2) DEFAULT 0,
+    TotalAmount        DECIMAL(18,2) DEFAULT 0,
+    Status             NVARCHAR(30)  DEFAULT 'Draft',
+    PaymentTerms       NVARCHAR(100) NULL,
+    ApprovedBy         NVARCHAR(128) NULL,
+    ApprovedDate       DATETIME      NULL,
+    Notes              NVARCHAR(MAX) NULL,
+    ChangedBy          NVARCHAR(128) NULL,
+    ChangeDate         DATETIME      DEFAULT GETDATE()
+);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'PurchaseOrderItems')
+CREATE TABLE PurchaseOrderItems (
+    LineID             INT           PRIMARY KEY IDENTITY(1,1),
+    PurchaseOrderID    INT           NOT NULL REFERENCES PurchaseOrders(PurchaseOrderID) ON DELETE CASCADE,
+    Description        NVARCHAR(500) NOT NULL,
+    Quantity           DECIMAL(18,4) DEFAULT 1,
+    UnitPrice          DECIMAL(18,2) NOT NULL,
+    Discount           DECIMAL(18,2) DEFAULT 0,
+    VATRate            DECIMAL(5,2)  DEFAULT 15.00,
+    LineTotal          DECIMAL(18,2) NOT NULL
+);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'PurchaseOrderApprovals')
+CREATE TABLE PurchaseOrderApprovals (
+    ApprovalID         INT           PRIMARY KEY IDENTITY(1,1),
+    PurchaseOrderID    INT           NOT NULL REFERENCES PurchaseOrders(PurchaseOrderID),
+    Token              NVARCHAR(100) NOT NULL UNIQUE,
+    Action             NVARCHAR(20)  NOT NULL,   -- 'Approve' | 'Reject'
+    ApproverEmail      NVARCHAR(200) NULL,
+    ApproverName       NVARCHAR(200) NULL,
+    ActedAt            DATETIME      NULL,
+    ExpiresAt          DATETIME      NOT NULL,
+    CreatedAt          DATETIME      DEFAULT GETDATE()
+);
+GO
+
+CREATE INDEX IX_PurchaseOrders_ProjectID  ON PurchaseOrders(ProjectID);
+CREATE INDEX IX_PurchaseOrderItems_POID   ON PurchaseOrderItems(PurchaseOrderID);
+CREATE INDEX IX_POApprovals_Token         ON PurchaseOrderApprovals(Token);
+GO
