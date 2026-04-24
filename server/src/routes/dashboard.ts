@@ -8,7 +8,7 @@ router.use(requireAuth);
 // GET /api/dashboard
 router.get('/', async (_req: Request, res: Response) => {
   try {
-    const [projects, labor, invoices, recentInvoices, recentProjects, iqamaAlerts] = await Promise.all([
+    const [projects, labor, invoices, purchaseOrders, recentInvoices, recentProjects, iqamaAlerts, recentPOs] = await Promise.all([
       runQuery<{ TotalProjects: number; ActiveProjects: number }>(
         `SELECT COUNT(*) AS TotalProjects, ISNULL(SUM(CASE WHEN Status='Active' THEN 1 ELSE 0 END),0) AS ActiveProjects FROM Projects`
       ),
@@ -22,12 +22,29 @@ router.get('/', async (_req: Request, res: Response) => {
                 ISNULL(SUM(CASE WHEN ZatcaStatus='Cleared' THEN 1 ELSE 0 END),0) AS ClearedCount
          FROM Invoices`
       ),
+      runQuery<{ TotalPOs: number; TotalValue: number; PendingCount: number; ApprovedCount: number; DraftCount: number }>(
+        `SELECT COUNT(*) AS TotalPOs,
+                ISNULL(SUM(TotalAmount),0) AS TotalValue,
+                ISNULL(SUM(CASE WHEN Status='PendingApproval' THEN 1 ELSE 0 END),0) AS PendingCount,
+                ISNULL(SUM(CASE WHEN Status='Approved' THEN 1 ELSE 0 END),0) AS ApprovedCount,
+                ISNULL(SUM(CASE WHEN Status='Draft' THEN 1 ELSE 0 END),0) AS DraftCount
+         FROM PurchaseOrders`
+      ),
       runQuery<{ InvoiceNumber: string; ClientName: string; TotalAmount: number; ZatcaStatus: string; InvoiceDate: string }>(
         `SELECT TOP 5 InvoiceNumber, ClientName, TotalAmount, ZatcaStatus, InvoiceDate
          FROM Invoices ORDER BY InvoiceID DESC`
       ),
       runQuery<{ ProjectCode: string; ProjectName: string; Status: string; ChangeDate: string }>(
         `SELECT TOP 5 ProjectCode, ProjectName, Status, ChangeDate FROM Projects ORDER BY ProjectID DESC`
+      ),
+      runQuery<{ PONumber: string; VendorName: string; TotalAmount: number; Status: string; OrderDate: string; ProjectCode: string }>(
+        `SELECT TOP 5
+           po.PONumber, po.VendorName, po.TotalAmount, po.Status,
+           CONVERT(NVARCHAR(10), po.OrderDate, 23) AS OrderDate,
+           ISNULL(p.ProjectCode,'') AS ProjectCode
+         FROM PurchaseOrders po
+         LEFT JOIN Projects p ON p.ProjectID = po.ProjectID
+         ORDER BY po.PurchaseOrderID DESC`
       ),
       runQuery<{ LaborID: number; FullName: string; IqamaNumber: string; IqamaExpiry: string; DaysLeft: number; ProjectName: string }>(
         `SELECT TOP 20
@@ -73,18 +90,25 @@ router.get('/', async (_req: Request, res: Response) => {
                 'Payment ' + CAST(CAST(Amount AS INT) AS NVARCHAR(20)) + ' SAR for Invoice#' + CAST(InvoiceID AS NVARCHAR(10)),
                 ISNULL(ChangedBy,'system'), ChangeDate
          FROM InvoicePayments WHERE ChangeDate IS NOT NULL
+         UNION ALL
+         SELECT 'PO',
+                'PO ' + PONumber + ' — ' + VendorName + ' (' + Status + ')',
+                ISNULL(ChangedBy,'system'), ChangeDate
+         FROM PurchaseOrders WHERE ChangeDate IS NOT NULL
        ) feed
        ORDER BY ChangeDate DESC`
     );
 
     res.json({
       summary: {
-        projects: projects[0] || { TotalProjects: 0, ActiveProjects: 0 },
-        labor: labor[0] || { TotalLabor: 0, ActiveLabor: 0 },
-        invoices: invoices[0] || { TotalInvoices: 0, TotalValue: 0, DraftCount: 0, ClearedCount: 0 },
+        projects:       projects[0]       || { TotalProjects: 0, ActiveProjects: 0 },
+        labor:          labor[0]          || { TotalLabor: 0, ActiveLabor: 0 },
+        invoices:       invoices[0]       || { TotalInvoices: 0, TotalValue: 0, DraftCount: 0, ClearedCount: 0 },
+        purchaseOrders: purchaseOrders[0] || { TotalPOs: 0, TotalValue: 0, PendingCount: 0, ApprovedCount: 0, DraftCount: 0 },
       },
       recentInvoices,
       recentProjects,
+      recentPOs,
       iqamaAlerts,
       activity,
     });

@@ -5,7 +5,6 @@ import { requireAuth, requireRole } from '../middleware/requireAuth';
 import { sendPOApprovalEmail, sendPOStatusEmail } from '../utils/email';
 
 const router = Router();
-router.use(requireAuth);
 
 const APP_URL = process.env.APP_URL || 'https://indigobuilders.deltatechcorp.com';
 
@@ -50,9 +49,86 @@ interface POItemRow {
   LineTotal: number;
 }
 
+// ── GET /action/:token  — email approval link (NO auth — accessed from email) ──
+// MUST be defined before /:id to avoid Express matching 'action' as an ID.
+
+router.get('/action/:token', async (req: Request, res: Response) => {
+  const { token } = req.params;
+  const reason = (req.query.reason as string) || '';
+
+  try {
+    const rows = await runQuery<{
+      ApprovalID: number; PurchaseOrderID: number; Action: string;
+      ApproverName: string; ActedAt: string | null; ExpiresAt: string;
+      PONumber: string; VendorName: string; SubmitterEmail: string;
+    }>(`
+      SELECT
+        a.ApprovalID, a.PurchaseOrderID, a.Action, a.ApproverName,
+        a.ActedAt, a.ExpiresAt,
+        po.PONumber, po.VendorName,
+        ISNULL(u.Email,'') AS SubmitterEmail
+      FROM PurchaseOrderApprovals a
+      JOIN PurchaseOrders po ON po.PurchaseOrderID = a.PurchaseOrderID
+      LEFT JOIN Users u ON u.Username = po.ChangedBy
+      WHERE a.Token = @token
+    `, { token });
+
+    if (!rows[0]) {
+      res.status(200).send(htmlPage('Invalid Link', 'This approval link is invalid or has already been used.', '#dc2626'));
+      return;
+    }
+
+    const row = rows[0];
+
+    if (row.ActedAt) {
+      res.status(200).send(htmlPage('Already Processed', `PO <strong>${row.PONumber}</strong> has already been processed.`, '#f59e0b'));
+      return;
+    }
+
+    if (new Date(row.ExpiresAt) < new Date()) {
+      res.status(200).send(htmlPage('Link Expired', 'This approval link has expired. Please log in to the ERP to take action.', '#f59e0b'));
+      return;
+    }
+
+    const newStatus = row.Action === 'Approve' ? 'Approved' : 'Rejected';
+
+    await runQueryResult(`
+      UPDATE PurchaseOrders
+      SET Status=@status, ApprovedBy=@name, ApprovedDate=GETDATE(), ChangedBy=@name, ChangeDate=GETDATE()
+      WHERE PurchaseOrderID=@poId
+    `, { status: newStatus, name: row.ApproverName, poId: row.PurchaseOrderID });
+
+    await runQueryResult(`
+      UPDATE PurchaseOrderApprovals SET ActedAt=GETDATE() WHERE ApprovalID=@id
+    `, { id: row.ApprovalID });
+
+    if (row.SubmitterEmail) {
+      try {
+        await sendPOStatusEmail({
+          to:         row.SubmitterEmail,
+          poNumber:   row.PONumber,
+          vendorName: row.VendorName,
+          status:     newStatus as 'Approved' | 'Rejected',
+          notes:      reason || undefined,
+        });
+      } catch { /* non-fatal */ }
+    }
+
+    const color = newStatus === 'Approved' ? '#059669' : '#dc2626';
+    res.status(200).send(htmlPage(
+      `PO ${newStatus}`,
+      `Purchase Order <strong>${row.PONumber}</strong> has been <strong>${newStatus.toLowerCase()}</strong> successfully.`,
+      color,
+    ));
+  } catch (err) {
+    console.error(err);
+    res.status(500).send(htmlPage('Error', 'An error occurred. Please try again or contact support.', '#dc2626'));
+  }
+});
+
 // ── GET /  — list ─────────────────────────────────────────────────────────────
 
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', requireAuth, async (req: Request, res: Response) => {
   const { projectId, status, from, to } = req.query as Record<string, string>;
   let where = 'WHERE 1=1';
   const params: Record<string, unknown> = {};
@@ -96,7 +172,7 @@ router.get('/', async (req: Request, res: Response) => {
 
 // ── GET /:id  — detail with items ─────────────────────────────────────────────
 
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', requireAuth, async (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
   try {
     const pos = await runQuery<PORow>(`
@@ -138,7 +214,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 // ── POST /  — create ──────────────────────────────────────────────────────────
 
-router.post('/', requireRole('Admin', 'Finance', 'PM'), async (req: Request, res: Response) => {
+router.post('/', requireAuth, requireRole('Admin', 'Finance', 'PM'), async (req: Request, res: Response) => {
   const {
     poNumber, projectID, vendorName, vendorEmail, vendorPhone, vendorVAT,
     vendorAddress, orderDate, expectedDeliveryDate, deliveryAddress,
@@ -221,7 +297,7 @@ router.post('/', requireRole('Admin', 'Finance', 'PM'), async (req: Request, res
 
 // ── PUT /:id  — update (Draft only) ──────────────────────────────────────────
 
-router.put('/:id', requireRole('Admin', 'Finance', 'PM'), async (req: Request, res: Response) => {
+router.put('/:id', requireAuth, requireRole('Admin', 'Finance', 'PM'), async (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
   const {
     vendorName, vendorEmail, vendorPhone, vendorVAT, vendorAddress,
@@ -302,7 +378,7 @@ router.put('/:id', requireRole('Admin', 'Finance', 'PM'), async (req: Request, r
 
 // ── PUT /:id/submit  — submit for approval (sends emails) ─────────────────────
 
-router.put('/:id/submit', requireRole('Admin', 'Finance', 'PM'), async (req: Request, res: Response) => {
+router.put('/:id/submit', requireAuth, requireRole('Admin', 'Finance', 'PM'), async (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
   try {
     const pos = await runQuery<PORow & { ProjectName: string }>(`
@@ -375,86 +451,9 @@ router.put('/:id/submit', requireRole('Admin', 'Finance', 'PM'), async (req: Req
   }
 });
 
-// ── GET /action/:token  — email approval/rejection link (no auth required) ────
-
-router.get('/action/:token', async (req: Request, res: Response) => {
-  const { token } = req.params;
-  const reason = (req.query.reason as string) || '';
-
-  try {
-    const rows = await runQuery<{
-      ApprovalID: number; PurchaseOrderID: number; Action: string;
-      ApproverName: string; ActedAt: string | null; ExpiresAt: string;
-      PONumber: string; VendorName: string; SubmitterEmail: string;
-    }>(`
-      SELECT
-        a.ApprovalID, a.PurchaseOrderID, a.Action, a.ApproverName,
-        a.ActedAt, a.ExpiresAt,
-        po.PONumber, po.VendorName,
-        ISNULL(u.Email,'') AS SubmitterEmail
-      FROM PurchaseOrderApprovals a
-      JOIN PurchaseOrders po ON po.PurchaseOrderID = a.PurchaseOrderID
-      LEFT JOIN Users u ON u.Username = po.ChangedBy
-      WHERE a.Token = @token
-    `, { token });
-
-    if (!rows[0]) {
-      res.status(200).send(htmlPage('Invalid Link', 'This approval link is invalid or has already been used.', '#dc2626'));
-      return;
-    }
-
-    const row = rows[0];
-
-    if (row.ActedAt) {
-      res.status(200).send(htmlPage('Already Processed', `This PO (${row.PONumber}) has already been processed.`, '#f59e0b'));
-      return;
-    }
-
-    if (new Date(row.ExpiresAt) < new Date()) {
-      res.status(200).send(htmlPage('Link Expired', 'This approval link has expired. Please log in to the ERP to take action.', '#f59e0b'));
-      return;
-    }
-
-    const newStatus = row.Action === 'Approve' ? 'Approved' : 'Rejected';
-
-    await runQueryResult(`
-      UPDATE PurchaseOrders
-      SET Status=@status, ApprovedBy=@name, ApprovedDate=GETDATE(), ChangedBy=@name, ChangeDate=GETDATE()
-      WHERE PurchaseOrderID=@poId
-    `, { status: newStatus, name: row.ApproverName, poId: row.PurchaseOrderID });
-
-    await runQueryResult(`
-      UPDATE PurchaseOrderApprovals SET ActedAt=GETDATE() WHERE ApprovalID=@id
-    `, { id: row.ApprovalID });
-
-    // Notify submitter
-    if (row.SubmitterEmail) {
-      try {
-        await sendPOStatusEmail({
-          to:         row.SubmitterEmail,
-          poNumber:   row.PONumber,
-          vendorName: row.VendorName,
-          status:     newStatus as 'Approved' | 'Rejected',
-          notes:      reason || undefined,
-        });
-      } catch { /* non-fatal */ }
-    }
-
-    const color = newStatus === 'Approved' ? '#059669' : '#dc2626';
-    res.status(200).send(htmlPage(
-      `PO ${newStatus}`,
-      `Purchase Order <strong>${row.PONumber}</strong> has been <strong>${newStatus.toLowerCase()}</strong> successfully.`,
-      color,
-    ));
-  } catch (err) {
-    console.error(err);
-    res.status(500).send(htmlPage('Error', 'An error occurred. Please try again or contact support.', '#dc2626'));
-  }
-});
-
 // ── PUT /:id/status  — manual status override (Admin only) ───────────────────
 
-router.put('/:id/status', requireRole('Admin'), async (req: Request, res: Response) => {
+router.put('/:id/status', requireAuth, requireRole('Admin'), async (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
   const { status } = req.body as { status: string };
   const allowed = ['Draft', 'PendingApproval', 'Approved', 'Delivered', 'Cancelled', 'Rejected'];
@@ -475,7 +474,7 @@ router.put('/:id/status', requireRole('Admin'), async (req: Request, res: Respon
 
 // ── DELETE /:id ───────────────────────────────────────────────────────────────
 
-router.delete('/:id', requireRole('Admin', 'Finance'), async (req: Request, res: Response) => {
+router.delete('/:id', requireAuth, requireRole('Admin', 'Finance'), async (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
   try {
     const existing = await runQuery<{ Status: string }>(`SELECT Status FROM PurchaseOrders WHERE PurchaseOrderID=@id`, { id });
