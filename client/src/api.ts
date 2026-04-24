@@ -21,7 +21,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (res.status === 401) {
     storage.remove('ib_token');
     storage.remove('ib_user');
-    window.location.href = '/';
+    window.dispatchEvent(new CustomEvent('auth:expired'));
     throw new Error('Unauthorized');
   }
 
