@@ -8,7 +8,7 @@ router.use(requireAuth);
 // GET /api/dashboard
 router.get('/', async (_req: Request, res: Response) => {
   try {
-    const [projects, labor, invoices, purchaseOrders, recentInvoices, recentProjects, iqamaAlerts, recentPOs] = await Promise.all([
+    const [projects, labor, invoices, purchaseOrders, recentInvoices, recentProjects, recentPOs, iqamaAlerts] = await Promise.all([
       runQuery<{ TotalProjects: number; ActiveProjects: number }>(
         `SELECT COUNT(*) AS TotalProjects, ISNULL(SUM(CASE WHEN Status='Active' THEN 1 ELSE 0 END),0) AS ActiveProjects FROM Projects`
       ),

@@ -23,6 +23,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(JSON.parse(stored) as AppUser);
     }
     setLoading(false);
+
+    const handleExpired = () => setUser(null);
+    window.addEventListener('auth:expired', handleExpired);
+    return () => window.removeEventListener('auth:expired', handleExpired);
   }, []);
 
   const login = async (username: string, password: string) => {

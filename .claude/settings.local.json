@@ -22,7 +22,10 @@
       "Bash(npx pm2 *)",
       "Bash(taskkill *)",
       "Bash(netstat -ano)",
-      "Bash(cmd *)"
+      "Bash(cmd *)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); uuid=d.get\\('packages',{}\\).get\\('node_modules/uuid',{}\\); print\\('uuid version:', uuid.get\\('version','not found'\\)\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); pkg=d.get\\('packages',{}\\).get\\('node_modules/mssql',{}\\); print\\('mssql version:', pkg.get\\('version','not found'\\)\\)\")",
+      "Bash(python *)"
     ]
   }
 }

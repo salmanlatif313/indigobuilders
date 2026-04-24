@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './AuthContext';
 import { LangProvider } from './LangContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import LoginView from './views/LoginView';
 import Layout from './components/Layout';
 import DashboardView from './views/DashboardView';
@@ -52,10 +53,12 @@ function AppInner() {
 
 export default function App() {
   return (
-    <LangProvider>
-      <AuthProvider>
-        <AppInner />
-      </AuthProvider>
-    </LangProvider>
+    <ErrorBoundary>
+      <LangProvider>
+        <AuthProvider>
+          <AppInner />
+        </AuthProvider>
+      </LangProvider>
+    </ErrorBoundary>
   );
 }

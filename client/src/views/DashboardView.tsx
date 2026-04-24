@@ -144,7 +144,7 @@ export default function DashboardView() {
               <tbody className="divide-y divide-amber-100">
                 {iqamaAlerts.map(a => (
                   <tr key={a.LaborID} className="hover:bg-amber-100/50">
-                    <td className="py-2 pe-4 font-medium text-gray-900">{a.FullName.slice(0, 40)}</td>
+                    <td className="py-2 pe-4 font-medium text-gray-900">{(a.FullName || '').slice(0, 40)}</td>
                     <td className="py-2 pe-4 font-mono text-xs text-gray-500">{a.IqamaNumber}</td>
                     <td className="py-2 pe-4 text-gray-500 text-xs">{a.ProjectName || '—'}</td>
                     <td className="py-2 pe-4 text-xs text-gray-500">{a.IqamaExpiry}</td>
