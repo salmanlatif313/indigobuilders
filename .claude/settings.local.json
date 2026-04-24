@@ -21,7 +21,8 @@
       "Bash(pm2 list *)",
       "Bash(npx pm2 *)",
       "Bash(taskkill *)",
-      "Bash(netstat -ano)"
+      "Bash(netstat -ano)",
+      "Bash(cmd *)"
     ]
   }
 }
