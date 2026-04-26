@@ -198,13 +198,16 @@ router.post('/:id/import', requireAuth, requireRole('Admin', 'PM'), async (req: 
       });
     }
 
-    await runQueryResult(`
+    const totals = await runQuery<{ TotalAmount: number }>(`
       UPDATE BOQ SET TotalAmount = (SELECT ISNULL(SUM(TotalWithProfit),0) FROM BOQItems WHERE BOQHeaderID=@id),
         ChangedBy=@changedBy, ChangeDate=GETDATE()
+      OUTPUT INSERTED.TotalAmount
       WHERE BOQHeaderID=@id
     `, { id, changedBy: req.user?.username });
 
-    res.json({ message: `${items.length} items imported`, totalAmount });
+    // Return the DB-computed total (all items, including pre-existing when not replacing)
+    const fullTotal = totals[0]?.TotalAmount ?? totalAmount;
+    res.json({ message: `${items.length} items imported`, totalAmount: fullTotal });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 

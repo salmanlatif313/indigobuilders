@@ -102,10 +102,30 @@ export default function BOQView() {
     catch (e: unknown) { alert(e instanceof Error ? e.message : 'Error'); }
   };
 
+  // RFC 4180 CSV parser — handles quoted fields containing commas and newlines
+  const parseCsvLine = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { current += '"'; i++; } // escaped quote
+        else inQuotes = !inQuotes;
+      } else if (ch === ',' && !inQuotes) {
+        result.push(current.trim()); current = '';
+      } else {
+        current += ch;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  };
+
   const parseCSV = (text: string): Partial<BOQItem>[] => {
-    const lines = text.trim().split('\n').slice(1); // skip header
+    const lines = text.trim().split('\n').slice(1); // skip header row
     return lines.map(line => {
-      const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
+      const parts = parseCsvLine(line);
       return {
         SerialNo: parts[0] || '', MainScope: parts[1] || '', Category: parts[2] || '',
         Description: parts[3] || '', Unit: parts[4] || '',
@@ -365,7 +385,7 @@ export default function BOQView() {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Target BOQ *</label>
-                <select className="input-field" value={importBOQId || ''} onChange={e => setImportBOQId(parseInt(e.target.value))}>
+                <select className="input-field" value={importBOQId || ''} onChange={e => setImportBOQId(e.target.value ? parseInt(e.target.value) : null)}>
                   <option value="">Select BOQ...</option>
                   {boqs.map(b => <option key={b.BOQHeaderID} value={b.BOQHeaderID}>{b.BOQNumber} — {b.Title}</option>)}
                 </select>
