@@ -163,6 +163,109 @@ export const api = {
   deletePurchaseOrder: (id: number) =>
     request<{ message: string }>('DELETE', `/purchase-orders/${id}`),
 
+  // Vendors
+  getVendors: (params?: { status?: string; category?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.status)   qs.set('status', params.status);
+    if (params?.category) qs.set('category', params.category);
+    return request<{ vendors: Vendor[]; count: number }>('GET', `/vendors?${qs}`);
+  },
+  getVendor: (id: number) => request<{ vendor: Vendor }>('GET', `/vendors/${id}`),
+  createVendor: (data: Partial<Vendor>) => request<{ message: string; vendorId: number }>('POST', '/vendors', data),
+  updateVendor: (id: number, data: Partial<Vendor>) => request<{ message: string }>('PUT', `/vendors/${id}`, data),
+  deleteVendor: (id: number) => request<{ message: string }>('DELETE', `/vendors/${id}`),
+
+  // BOQ
+  getBOQs: (params?: { projectId?: number }) => {
+    const qs = params?.projectId ? `?projectId=${params.projectId}` : '';
+    return request<{ boqs: BOQHeader[]; count: number }>('GET', `/boq${qs}`);
+  },
+  getBOQItems: (boqId: number) => request<{ items: BOQItem[]; count: number }>('GET', `/boq/${boqId}/items`),
+  createBOQ: (data: CreateBOQInput) => request<{ message: string; boqId: number; boqNumber: string }>('POST', '/boq', data),
+  importBOQItems: (boqId: number, items: Partial<BOQItem>[], replaceExisting?: boolean) =>
+    request<{ message: string; totalAmount: number }>('POST', `/boq/${boqId}/import`, { items, replaceExisting }),
+  updateBOQStatus: (id: number, status: string) => request<{ message: string }>('PUT', `/boq/${id}/status`, { status }),
+  deleteBOQ: (id: number) => request<{ message: string }>('DELETE', `/boq/${id}`),
+
+  // RFQ
+  getRFQs: (params?: { projectId?: number; status?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.projectId) qs.set('projectId', String(params.projectId));
+    if (params?.status)    qs.set('status', params.status);
+    return request<{ rfqs: RFQHeader[]; count: number }>('GET', `/rfq?${qs}`);
+  },
+  getRFQ: (id: number) => request<{ rfq: RFQHeader; lines: RFQLine[]; quotes: VendorQuote[] }>('GET', `/rfq/${id}`),
+  createRFQ: (data: CreateRFQInput) => request<{ message: string; rfqId: number; rfqNumber: string }>('POST', '/rfq', data),
+  updateRFQStatus: (id: number, status: string) => request<{ message: string }>('PUT', `/rfq/${id}/status`, { status }),
+  saveQuote: (rfqId: number, data: Partial<VendorQuote>) => request<{ message: string; totalAmount: number }>('POST', `/rfq/${rfqId}/quotes`, data),
+  awardQuote: (rfqId: number, quoteId: number) => request<{ message: string }>('PUT', `/rfq/${rfqId}/award`, { quoteId }),
+  deleteRFQ: (id: number) => request<{ message: string }>('DELETE', `/rfq/${id}`),
+
+  // GRN
+  getGRNs: (params?: { projectId?: number; status?: string; poId?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.projectId) qs.set('projectId', String(params.projectId));
+    if (params?.status)    qs.set('status', params.status);
+    if (params?.poId)      qs.set('poId', String(params.poId));
+    return request<{ grns: GRNHeader[]; count: number }>('GET', `/grn?${qs}`);
+  },
+  getGRN: (id: number) => request<{ grn: GRNHeader; lines: GRNLine[] }>('GET', `/grn/${id}`),
+  createGRN: (data: CreateGRNInput) => request<{ message: string; grnId: number; grnNumber: string }>('POST', '/grn', data),
+  updateGRNStatus: (id: number, status: string) => request<{ message: string }>('PUT', `/grn/${id}/status`, { status }),
+  deleteGRN: (id: number) => request<{ message: string }>('DELETE', `/grn/${id}`),
+
+  // QC
+  getQCInspections: (params?: { status?: string; projectId?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.status)    qs.set('status', params.status);
+    if (params?.projectId) qs.set('projectId', String(params.projectId));
+    return request<{ inspections: QCInspection[]; count: number }>('GET', `/qc?${qs}`);
+  },
+  getQCInspection: (id: number) => request<{ inspection: QCInspection; lines: QCLine[] }>('GET', `/qc/${id}`),
+  completeQC: (id: number, data: { inspectedBy?: string; notes?: string; lines: { qcLineId: number; inspectedQty: number; acceptedQty: number; rejectedQty: number; decision: string; rejectionReason?: string }[] }) =>
+    request<{ message: string; grnStatus: string }>('PUT', `/qc/${id}/complete`, data),
+
+  // Inventory
+  getInventory: (params?: { projectId?: number; lowStock?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (params?.projectId) qs.set('projectId', String(params.projectId));
+    if (params?.lowStock)  qs.set('lowStock', 'true');
+    return request<{ stock: StockItem[]; count: number; lowStockCount: number }>('GET', `/inventory?${qs}`);
+  },
+  updateStockItem: (id: number, data: Partial<StockItem>) => request<{ message: string }>('PUT', `/inventory/${id}`, data),
+
+  // Material Issue / DC
+  getMaterialIssues: (params?: { projectId?: number; status?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.projectId) qs.set('projectId', String(params.projectId));
+    if (params?.status)    qs.set('status', params.status);
+    return request<{ issues: IssueHeader[]; count: number }>('GET', `/material-issue?${qs}`);
+  },
+  getMaterialIssue: (id: number) => request<{ issue: IssueHeader; lines: IssueLine[] }>('GET', `/material-issue/${id}`),
+  createMaterialIssue: (data: CreateIssueInput) =>
+    request<{ message: string; issueId: number; dcNumber: string }>('POST', '/material-issue', data),
+  issueDC: (id: number, data: { authorizedBy?: string; lines: { issueLineId: number; issuedQty: number }[] }) =>
+    request<{ message: string; totalExpense: number }>('PUT', `/material-issue/${id}/issue`, data),
+  deleteMaterialIssue: (id: number) => request<{ message: string }>('DELETE', `/material-issue/${id}`),
+
+  // Vendor Payments
+  getVendorPayments: (params?: { vendorId?: number; from?: string; to?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.vendorId) qs.set('vendorId', String(params.vendorId));
+    if (params?.from)     qs.set('from', params.from);
+    if (params?.to)       qs.set('to', params.to);
+    return request<{ payments: VendorPayment[]; count: number }>('GET', `/vendor-payments?${qs}`);
+  },
+  getVendorBills: (params?: { vendorId?: number }) => {
+    const qs = params?.vendorId ? `?vendorId=${params.vendorId}` : '';
+    return request<{ bills: VendorBill[]; count: number }>('GET', `/vendor-payments/bills${qs}`);
+  },
+  getVendorStatement: (vendorId: number) =>
+    request<{ summary: VendorStatSummary; bills: VendorBill[]; payments: VendorPayment[] }>('GET', `/vendor-payments/statement/${vendorId}`),
+  createVendorPayment: (data: CreateVendorPaymentInput) =>
+    request<{ message: string; paymentId: number }>('POST', '/vendor-payments', data),
+  deleteVendorPayment: (id: number) => request<{ message: string }>('DELETE', `/vendor-payments/${id}`),
+
   // Invoices
   getInvoices: (params?: { projectId?: number; status?: string }) => {
     const qs = new URLSearchParams();
@@ -363,3 +466,138 @@ export interface LaborByProjectReport {
   totals: { headCount: number; totalBasic: number; totalGross: number; saudiCount: number; nonSaudiCount: number };
   count: number;
 }
+
+// ── v3.6 Procurement Types ────────────────────────────────────────────────────
+
+export interface Vendor {
+  VendorID?: number; VendorCode: string; VendorName: string; VendorNameAr: string;
+  Category: string; ContactPerson: string; Phone: string; Email: string;
+  VATNumber: string; IBAN: string; BankCode: string; PaymentTerms: string;
+  ApprovalStatus: string; Rating: number; Address: string; IsActive: boolean;
+  Notes: string; ChangedBy: string; ChangeDate: string;
+}
+export const VENDOR_CATEGORIES = ['Civil', 'Electrical', 'HVAC', 'Mechanical', 'Supply', 'Services', 'Other'];
+export const VENDOR_PAYMENT_TERMS = ['Advance', 'COD', 'Net30', 'Net60', 'Net90'];
+export const VENDOR_STATUSES = ['Pending', 'Approved', 'Blacklisted'];
+
+export interface BOQHeader {
+  BOQHeaderID: number; ProjectID: number; ProjectCode: string; ProjectName: string;
+  BOQNumber: string; Title: string; RevisionNumber: number; BOQDate: string;
+  Status: string; TotalAmount: number; Notes: string; ChangedBy: string; ChangeDate: string;
+}
+export interface BOQItem {
+  BOQItemID?: number; BOQHeaderID?: number; SerialNo: string; MainScope: string;
+  Category: string; Description: string; Unit: string; Quantity: number;
+  UnitRate: number; Amount: number; ProfitPct: number; ProfitAmount: number;
+  TotalWithProfit: number; ProcurementStatus: string;
+}
+export interface CreateBOQInput {
+  projectId: number; boqNumber: string; title: string; revisionNumber?: number;
+  boqDate: string; notes?: string;
+  items?: Partial<BOQItem>[];
+}
+
+export interface RFQHeader {
+  RFQHeaderID: number; RFQNumber: string; ProjectID: number;
+  ProjectCode: string; ProjectName: string; Title: string;
+  RFQDate: string; DueDate: string; Status: string; Notes: string;
+  ChangedBy: string; ChangeDate: string; LineCount: number;
+}
+export interface RFQLine {
+  RFQLineID: number; RFQHeaderID: number; BOQItemID: number | null;
+  Description: string; Unit: string; Quantity: number; Notes: string;
+}
+export interface VendorQuote {
+  QuoteID: number; RFQHeaderID: number; RFQLineID: number; VendorID: number;
+  VendorName: string; QuoteDate: string; UnitPrice: number; TotalAmount: number;
+  DeliveryDays: number; Notes: string; IsAwarded: boolean;
+}
+export interface CreateRFQInput {
+  rfqNumber: string; projectId: number; title: string; rfqDate: string;
+  dueDate?: string; notes?: string;
+  lines?: { boqItemId?: number; description: string; unit?: string; quantity: number }[];
+}
+export const RFQ_STATUSES = ['Draft', 'Sent', 'QuotesReceived', 'Awarded', 'Cancelled'];
+
+export interface GRNHeader {
+  GRNHeaderID: number; GRNNumber: string; POHeaderID: number; PONumber: string;
+  ProjectID: number; ProjectCode: string; ProjectName: string;
+  GRNDate: string; VehicleNo: string; DriverName: string; DeliveryNoteNo: string;
+  StoreLocation: string; ReceivedBy: string; Status: string; Notes: string;
+  ChangedBy: string; ChangeDate: string;
+}
+export interface GRNLine {
+  GRNLineID: number; GRNHeaderID: number; POLineID: number; Description: string;
+  Unit: string; OrderedQty: number; PreviouslyReceivedQty: number; ThisReceiptQty: number; Notes: string;
+}
+export interface CreateGRNInput {
+  grnNumber: string; poHeaderId: number; projectId: number; grnDate: string;
+  vehicleNo?: string; driverName?: string; deliveryNoteNo?: string;
+  storeLocation?: string; receivedBy?: string; notes?: string;
+  lines: { poLineId: number; description: string; unit?: string;
+           orderedQty: number; previouslyReceivedQty: number; thisReceiptQty: number }[];
+}
+export const GRN_STATUSES = ['Draft', 'Inspecting', 'Accepted', 'PartialAccepted', 'Rejected'];
+
+export interface QCInspection {
+  QCInspectionID: number; GRNHeaderID: number; GRNNumber: string;
+  PONumber: string; ProjectCode: string; ProjectName: string;
+  InspectionDate: string; InspectedBy: string; Status: string; Notes: string;
+  ChangedBy: string; ChangeDate: string;
+}
+export interface QCLine {
+  QCLineID: number; QCInspectionID: number; GRNLineID: number;
+  Description: string; Unit: string; ThisReceiptQty: number;
+  InspectedQty: number; AcceptedQty: number; RejectedQty: number;
+  Decision: string; RejectionReason: string; Notes: string;
+}
+export const QC_DECISIONS = ['Accepted', 'Rejected', 'AcceptedWithDeviation', 'Pending'];
+
+export interface StockItem {
+  StockID: number; ProjectID: number; ProjectCode: string; ProjectName: string;
+  ItemCode: string; ItemDescription: string; Unit: string;
+  CurrentQty: number; MinStockLevel: number; UnitCost: number; TotalValue: number;
+  LastReceiptDate: string; LastIssueDate: string; LowStock: boolean;
+  ChangedBy: string; ChangeDate: string;
+}
+
+export interface IssueHeader {
+  IssueHeaderID: number; DCNumber: string; ProjectID: number;
+  ProjectCode: string; ProjectName: string; FromStore: string; ToSite: string;
+  IssueDate: string; RequestedBy: string; IssuedBy: string; AuthorizedBy: string;
+  Status: string; Notes: string; TotalCost: number; ChangedBy: string; ChangeDate: string;
+}
+export interface IssueLine {
+  IssueLineID: number; IssueHeaderID: number; StockID: number;
+  Description: string; Unit: string; RequestedQty: number;
+  IssuedQty: number; UnitCost: number; TotalCost: number;
+}
+export interface CreateIssueInput {
+  dcNumber: string; projectId: number; fromStore?: string; toSite?: string;
+  issueDate: string; requestedBy?: string; notes?: string;
+  lines: { stockId: number; description: string; unit?: string; requestedQty: number }[];
+}
+
+export interface VendorBill {
+  VendorBillID: number; GRNNumber: string; VendorID: number; VendorName: string;
+  BillNumber: string; BillDate: string; DueDate: string;
+  TotalAmount: number; TotalPaid: number; Outstanding: number; Status: string;
+}
+export interface VendorPayment {
+  VendorPaymentID: number; VendorID: number; VendorName: string;
+  VendorBillID: number | null; BillNumber: string;
+  POHeaderID: number | null; PONumber: string;
+  PaymentDate: string; PaymentType: string; Amount: number;
+  PaymentMethod: string; ReferenceNo: string; Notes: string;
+  ChangedBy: string; ChangeDate: string;
+}
+export interface VendorStatSummary {
+  VendorID: number; VendorName: string;
+  TotalBilled: number; TotalPaid: number; Outstanding: number;
+}
+export interface CreateVendorPaymentInput {
+  vendorId: number; vendorBillId?: number; poHeaderId?: number;
+  paymentDate: string; paymentType: string; amount: number;
+  paymentMethod: string; referenceNo?: string; notes?: string;
+}
+export const VENDOR_PAYMENT_TYPES = ['Advance', 'COD', 'PartialPayment', 'FinalPayment'];

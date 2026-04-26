@@ -62,6 +62,13 @@ echo [2/7] Building application...
 call npm run build
 if errorlevel 1 goto :build_failed
 
+echo [2b/7] Validating build (blank-screen check)...
+call npm run validate
+if errorlevel 1 (
+  echo ERROR: Build validation failed. Aborting deploy to prevent blank screen.
+  goto :failed
+)
+
 echo [3/7] Ensuring target folders exist...
 call :ensure_dir "%TARGET_CLIENT_DIST%" || goto :failed
 call :ensure_dir "%TARGET_SERVER_DIST%" || goto :failed

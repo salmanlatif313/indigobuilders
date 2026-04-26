@@ -12,6 +12,7 @@ interface NavItem {
   en: string;
   icon: ReactNode;
   roles?: string[];
+  isSeparator?: boolean;
 }
 
 const NAV: NavItem[] = [
@@ -58,6 +59,51 @@ const NAV: NavItem[] = [
     key: 'purchase-orders', ar: 'أوامر الشراء', en: 'Purchase Orders',
     icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>,
     roles: ['Admin', 'Finance', 'PM'],
+  },
+  {
+    key: '_sep_procurement', ar: '──────────', en: '── Procurement ──',
+    icon: null as unknown as ReactNode, roles: ['Admin', 'Finance', 'PM'],
+    isSeparator: true,
+  },
+  {
+    key: 'vendors', ar: 'الموردون', en: 'Vendors',
+    icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
+    roles: ['Admin', 'Finance'],
+  },
+  {
+    key: 'boq', ar: 'جداول الكميات', en: 'BOQ',
+    icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+    roles: ['Admin', 'Finance', 'PM', 'Engineer'],
+  },
+  {
+    key: 'rfq', ar: 'طلبات الأسعار', en: 'RFQ',
+    icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>,
+    roles: ['Admin', 'Finance', 'PM'],
+  },
+  {
+    key: 'grn', ar: 'استلام البضاعة', en: 'GRN / IGP',
+    icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>,
+    roles: ['Admin', 'Finance', 'PM', 'Engineer'],
+  },
+  {
+    key: 'qc', ar: 'مراقبة الجودة', en: 'QC Inspection',
+    icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+    roles: ['Admin', 'Finance', 'PM', 'Engineer'],
+  },
+  {
+    key: 'inventory', ar: 'المخزون', en: 'Inventory',
+    icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>,
+    roles: ['Admin', 'Finance', 'PM', 'Engineer'],
+  },
+  {
+    key: 'material-issue', ar: 'طلب مواد', en: 'Material Issue',
+    icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20" /></svg>,
+    roles: ['Admin', 'Finance', 'PM', 'Engineer'],
+  },
+  {
+    key: 'vendor-payments', ar: 'مدفوعات الموردين', en: 'Vendor Payments',
+    icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+    roles: ['Admin', 'Finance'],
   },
   {
     key: 'users', ar: 'المستخدمون', en: 'Users',
@@ -131,7 +177,13 @@ export default function Layout({ children, page, onNavigate }: LayoutProps) {
 
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {visibleNav.map(item => (
+          {visibleNav.map(item => item.isSeparator ? (
+            <div key={item.key} className="px-3 pt-3 pb-1">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-white/30">
+                {lang === 'ar' ? item.ar : 'Procurement'}
+              </p>
+            </div>
+          ) : (
             <button
               key={item.key}
               onClick={() => { onNavigate(item.key); setSidebarOpen(false); }}

@@ -69,3 +69,13 @@ All user prompts from project start, grouped by session.
 | 38 | browser is blank screen (root cause: Vite 8 not replacing `__APP_VERSION__` define in dev mode — fixed by importing pkg from package.json) |
 | 39 | create a purchase order module related to a construction business. adopt a email based approval. use sendgrid. add menu item "Purchase Orders" |
 | 40 | update srs, claude.md and prompt files |
+
+---
+
+## Session 5 — Documentation Refresh
+
+| # | Prompt |
+|---|--------|
+| 41 | time to update the srs and other docments |
+| 42 | review NADRA - CEO.xlsx (BOQ) and suggest industrial standard procurement workflow before updating SRS |
+| 43 | looks good (approved procurement-to-payment lifecycle — 9 new modules, 15 new DB tables added to SRS v3.6) |

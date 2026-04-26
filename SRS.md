@@ -16,6 +16,8 @@
 | v3.2    | 2026-04-14 | S. Latif + AI | Implemented: PWA (vite-plugin-pwa + Workbox), TanStack Virtual (LaborView), full ZATCA UBL 2.1 XML + TLV QR generation, Engineer role read-only access. XML download endpoint added to InvoicesView. |
 | v3.3    | 2026-04-14 | S. Latif + AI | Smart chip filters added to all data views (ChipFilter component). Dashboard alerts panel made inner-scrollable. 1,460 seed records loaded. |
 | v3.4    | 2026-04-24 | S. Latif + AI | Blank screen fix (Vite 8 `define` → import pkg from package.json). Purchase Orders module added: full CRUD, email-based approval via SendGrid, status workflow (Draft→PendingApproval→Approved→Delivered), `PurchaseOrders` + `PurchaseOrderItems` + `PurchaseOrderApprovals` tables. |
+| v3.5    | 2026-04-26 | S. Latif + AI | Periodic documentation review. Verified all module statuses current. Users Management module explicitly documented. No new features since v3.4. |
+| v3.6    | 2026-04-26 | S. Latif + AI | Full procurement-to-payment lifecycle added: BOQ Management, Vendor Registry (AVL), RFQ, GRN/IGP, QC Inspection, Inventory/Store Ledger, Material Issue/DC, Vendor Payments (AP), Customer Invoice minimum amount. 15 new DB tables. Role permissions matrix expanded. |
 
 ---
 
@@ -100,6 +102,21 @@ operations while maintaining strict legal compliance with the Kingdom's digital 
 | `PurchaseOrders` | PO header — vendor, amounts, status, approval tracking | ✅ |
 | `PurchaseOrderItems` | Line items per PO — qty, price, discount, VAT | ✅ |
 | `PurchaseOrderApprovals` | Email approval tokens (UUID, expiry, acted-at) | ✅ |
+| `Vendors` | Approved Vendor List — master vendor registry with payment terms & rating | 📋 v3.6 |
+| `BOQ` | Bill of Quantities header per project — revision-tracked | 📋 v3.6 |
+| `BOQItems` | BOQ line items: scope, category, description, unit, qty, rate, profit% | 📋 v3.6 |
+| `RFQHeaders` | RFQ header per procurement event linked to project | 📋 v3.6 |
+| `RFQLines` | Material/service items requested per RFQ | 📋 v3.6 |
+| `RFQVendorQuotes` | Vendor quote per RFQ line — comparison matrix source | 📋 v3.6 |
+| `GRNHeaders` | Inward Gate Pass / Goods Receipt header — linked to PO | 📋 v3.6 |
+| `GRNLines` | Per-item received qty against PO line (supports partial receipt) | 📋 v3.6 |
+| `VendorBills` | Vendor invoices attached to GRN — AP liability source | 📋 v3.6 |
+| `QCInspections` | QC inspection header triggered by GRN acceptance | 📋 v3.6 |
+| `QCInspectionLines` | Per-item QC decision: Accept / Reject / Accept with Deviation | 📋 v3.6 |
+| `StoreStock` | Running stock ledger per project store (receipts, issues, balance) | 📋 v3.6 |
+| `MaterialIssueHeaders` | Delivery Challan header — stock release from store to construction site | 📋 v3.6 |
+| `MaterialIssueLines` | DC line items: item, qty, unit cost, total cost auto-expensed to project | 📋 v3.6 |
+| `VendorPayments` | AP payments against vendor bills — advance, COD, net terms | 📋 v3.6 |
 
 ### 3.2 Views
 
@@ -120,12 +137,108 @@ LaborID, IqamaNumber (UNIQUE), IBAN, BasicSalary, HousingAllowance,
 TransportAllowance, OtherAllowances, GOSINumber, NationalityCode (SAU/OTH),
 JobTitle, ProjectID, IqamaExpiry, IsActive
 
+-- Projects (v3.6: add client billing threshold)
+ProjectID, ProjectCode, ProjectName, ClientName, ClientVAT,
+ContractValue, StartDate, EndDate, Status, Location, ManagerUserID,
+MinInvoiceAmount DECIMAL(18,2) NULL   -- customer minimum billing threshold
+
 -- Invoices (ZATCA Phase 2)
 InvoiceID, InvoiceNumber (UNIQUE), ZatcaStatus, ZatcaQRCode, ZatcaXML (XML type),
 ZatcaUUID, RetentionAmount, RetentionRate, SubTotal, VATAmount, TotalAmount
 
 -- InvoicePayments
 PaymentID, InvoiceID (FK), PaymentDate, Amount, PaymentMethod, Reference
+
+-- Vendors (AVL)
+VendorID, VendorCode, VendorName, VendorNameAr, Category, ContactPerson,
+Phone, Email, VATNumber, IBAN, BankCode,
+PaymentTerms NVARCHAR(20),  -- Advance | COD | Net30 | Net60 | Net90
+ApprovalStatus NVARCHAR(20), -- Pending | Approved | Blacklisted
+Rating TINYINT, Address NVARCHAR(MAX), IsActive BIT,
+Notes NVARCHAR(MAX), ChangedBy NVARCHAR(128), ChangeDate DATETIME
+
+-- BOQ (header per project)
+BOQHeaderID, ProjectID (FK), BOQNumber, Title, RevisionNumber TINYINT,
+BOQDate, Status NVARCHAR(20),  -- Active | Revised | Superseded
+TotalAmount, Notes NVARCHAR(MAX), ChangedBy NVARCHAR(128), ChangeDate DATETIME
+
+-- BOQItems
+BOQItemID, BOQHeaderID (FK), SerialNo, MainScope, Category,
+Description NVARCHAR(MAX), Unit, Quantity, UnitRate, Amount,
+ProfitPct DECIMAL(5,2), ProfitAmount, TotalWithProfit,
+ProcurementStatus NVARCHAR(20)  -- NotStarted | InProgress | Completed
+
+-- RFQHeaders
+RFQHeaderID, RFQNumber, ProjectID (FK), Title, RFQDate, DueDate,
+Status NVARCHAR(20),  -- Draft | Sent | QuotesReceived | Awarded | Cancelled
+Notes NVARCHAR(MAX), ChangedBy NVARCHAR(128), ChangeDate DATETIME
+
+-- RFQLines
+RFQLineID, RFQHeaderID (FK), BOQItemID (FK nullable),
+Description NVARCHAR(MAX), Unit, Quantity, Notes NVARCHAR(MAX)
+
+-- RFQVendorQuotes
+QuoteID, RFQHeaderID (FK), RFQLineID (FK), VendorID (FK),
+QuoteDate, UnitPrice, TotalAmount, DeliveryDays INT,
+Notes NVARCHAR(MAX), IsAwarded BIT DEFAULT 0,
+ChangedBy NVARCHAR(128), ChangeDate DATETIME
+
+-- GRNHeaders (IGP — Inward Gate Pass)
+GRNHeaderID, GRNNumber, POHeaderID (FK to PurchaseOrders),
+ProjectID (FK), GRNDate, VehicleNo, DriverName, DeliveryNoteNo,
+StoreLocation, ReceivedBy,
+Status NVARCHAR(20),  -- Draft | Inspecting | Accepted | PartialAccepted | Rejected
+Notes NVARCHAR(MAX), ChangedBy NVARCHAR(128), ChangeDate DATETIME
+
+-- GRNLines
+GRNLineID, GRNHeaderID (FK), POLineID (FK to PurchaseOrderItems),
+Description NVARCHAR(MAX), Unit,
+OrderedQty, PreviouslyReceivedQty, ThisReceiptQty, Notes NVARCHAR(MAX)
+
+-- VendorBills (AP liability)
+VendorBillID, GRNHeaderID (FK), VendorID (FK),
+BillNumber, BillDate, DueDate,
+Amount, VATAmount, TotalAmount,
+Status NVARCHAR(20),  -- Pending | Approved | Paid | PartiallyPaid
+Notes NVARCHAR(MAX), ChangedBy NVARCHAR(128), ChangeDate DATETIME
+
+-- QCInspections
+QCInspectionID, GRNHeaderID (FK), InspectionDate, InspectedBy,
+Status NVARCHAR(20),  -- Pending | Completed
+Notes NVARCHAR(MAX), ChangedBy NVARCHAR(128), ChangeDate DATETIME
+
+-- QCInspectionLines
+QCLineID, QCInspectionID (FK), GRNLineID (FK),
+InspectedQty, AcceptedQty, RejectedQty,
+Decision NVARCHAR(30),  -- Accepted | Rejected | AcceptedWithDeviation
+RejectionReason NVARCHAR(MAX), Notes NVARCHAR(MAX)
+
+-- StoreStock
+StockID, ProjectID (FK), ItemCode, ItemDescription, Unit,
+CurrentQty DECIMAL(18,4), MinStockLevel DECIMAL(18,4),
+UnitCost, TotalValue, LastReceiptDate, LastIssueDate,
+ChangedBy NVARCHAR(128), ChangeDate DATETIME
+
+-- MaterialIssueHeaders (Delivery Challan)
+IssueHeaderID, DCNumber, ProjectID (FK), FromStore, ToSite,
+IssueDate, RequestedBy, IssuedBy, AuthorizedBy,
+Status NVARCHAR(20),  -- Draft | Approved | Issued
+Notes NVARCHAR(MAX), ChangedBy NVARCHAR(128), ChangeDate DATETIME
+
+-- MaterialIssueLines
+IssueLineID, IssueHeaderID (FK), StockID (FK),
+Description NVARCHAR(MAX), Unit,
+RequestedQty, IssuedQty, UnitCost, TotalCost
+
+-- VendorPayments
+VendorPaymentID, VendorID (FK), VendorBillID (FK nullable),
+POHeaderID (FK to PurchaseOrders, nullable),
+PaymentDate, PaymentType NVARCHAR(20),  -- Advance | COD | PartialPayment | FinalPayment
+Amount, PaymentMethod NVARCHAR(20),     -- BankTransfer | Cheque | Cash | Online
+ReferenceNo, Notes NVARCHAR(MAX), ChangedBy NVARCHAR(128), ChangeDate DATETIME
+
+-- PurchaseOrders (v3.6 additions — backward compatible)
+-- Add columns: VendorID (FK to Vendors, nullable), RFQHeaderID (FK to RFQHeaders, nullable)
 ```
 
 ---
@@ -156,6 +269,14 @@ PaymentID, InvoiceID (FK), PaymentDate, Amount, PaymentMethod, Reference
 | Purchase Orders | CRUD + approve | CRUD + approve | Create/Edit | — |
 | Reports | Read | Read | Read | — |
 | Compliance | Read | Read | Read | — |
+| BOQ | CRUD | Read | CRUD | Read |
+| Vendor Registry | CRUD | Read | Read | — |
+| RFQ | CRUD | CRUD | Create/Read | — |
+| GRN / IGP | CRUD | Read | CRUD | Read |
+| QC Inspection | CRUD | — | CRUD | CRUD |
+| Inventory / Stock | CRUD | Read | Read | Read |
+| Material Issue / DC | CRUD | — | CRUD | CRUD |
+| Vendor Payments | CRUD | CRUD | — | — |
 
 ### 4.2 Project Management
 
@@ -291,6 +412,125 @@ APP_URL=https://indigobuilders.deltatechcorp.com
 | Recent projects | Last 5 | ✅ |
 | Activity feed | Last 15 changes across all modules | ✅ |
 
+### 4.12 BOQ Management
+
+Bill of Quantities is the financial backbone of each project — every procurement, expense, and invoice traces back to a BOQ line.
+
+| Feature | Detail | Status |
+|---|---|---|
+| BOQ per project | One active BOQ header per project; revision-tracked | 📋 |
+| Excel/CSV import | Upload XLSX matching NADRA CEO format: Serial, Scope, Category, Description, Unit, Qty, Rate, Amount, Profit% | 📋 |
+| Manual line entry | Add/edit BOQ items inline | 📋 |
+| BOQ versioning | Rev 0, Rev 1… with superseded status; prior revisions read-only | 📋 |
+| Scope & category grouping | Group by Main Scope (Civil, Electrical, HVAC…) and Category | 📋 |
+| Procurement status per line | NotStarted / InProgress / Completed — auto-updated from PO/GRN | 📋 |
+| BOQ vs actual variance | Compare BOQ amount vs PO amounts raised — budget control | 📋 |
+| Chip filters | Filter by Scope, Category, ProcurementStatus | 📋 |
+| CSV export | Client-side blob download | 📋 |
+
+### 4.13 Vendor Registry (Approved Vendor List)
+
+Replaces the current inline vendor fields on POs with a proper master list.
+
+| Feature | Detail | Status |
+|---|---|---|
+| Vendor CRUD | Code, Name (bilingual), Category, Contact, Phone, Email | 📋 |
+| Compliance fields | VAT Number, IBAN, Bank Code | 📋 |
+| Payment terms | Advance / COD / Net30 / Net60 / Net90 — default per vendor | 📋 |
+| Approval status | Pending → Approved → Blacklisted workflow | 📋 |
+| Performance rating | 1–5 stars, updated after PO completion | 📋 |
+| Vendor category | Civil / Electrical / HVAC / Mechanical / Supply / Services / Other | 📋 |
+| Link to POs | All POs reference VendorID from master | 📋 |
+| Chip filters | Status chips (Approved / Pending / Blacklisted) + category chips | 📋 |
+
+### 4.14 RFQ (Request for Quotation)
+
+| Feature | Detail | Status |
+|---|---|---|
+| RFQ creation | Link to project and optionally to BOQ items | 📋 |
+| RFQ line items | Description, Unit, Qty — can be pulled from BOQ or entered manually | 📋 |
+| Send to vendors | Email via SendGrid to selected approved vendors (same token pattern as PO approval) | 📋 |
+| Quote entry | Enter vendor responses per line: Unit Price, Delivery Days, Notes | 📋 |
+| Quote comparison matrix | Side-by-side view of all vendor quotes per line item | 📋 |
+| Award RFQ | Mark winning vendor per line → auto-generate PO from awarded lines | 📋 |
+| Status workflow | Draft → Sent → QuotesReceived → Awarded / Cancelled | 📋 |
+| PO linkage | Awarded RFQ creates PO with `RFQHeaderID` reference | 📋 |
+
+### 4.15 GRN / Inward Gate Pass (IGP)
+
+Records material received at the project store against an open PO. Supports partial deliveries.
+
+| Feature | Detail | Status |
+|---|---|---|
+| GRN against PO | Select open/partial PO; shows PO lines with ordered qty and previously received qty | 📋 |
+| Partial receipt | Enter `ThisReceiptQty` per line — system tracks cumulative received vs ordered | 📋 |
+| Gate pass fields | GRN Number (auto), Date, Vehicle No, Driver Name, Delivery Note No, Store Location | 📋 |
+| Vendor bill attachment | Upload vendor invoice PDF/image; stored against GRN | 📋 |
+| Auto-create VendorBill | GRN submission creates a pending VendorBill record for AP | 📋 |
+| Trigger QC | On save, auto-creates a `QCInspection` record linked to this GRN | 📋 |
+| Status workflow | Draft → Inspecting → Accepted / PartialAccepted / Rejected | 📋 |
+| PO auto-close | PO marked Delivered when all lines fully received | 📋 |
+| Chip filters | Status chips; project filter | 📋 |
+
+### 4.16 Quality Inspection (QC)
+
+| Feature | Detail | Status |
+|---|---|---|
+| Inspection per GRN | Auto-created on GRN submission; assigned to store/QC team | 📋 |
+| Per-item decision | Accept / Reject / Accept with Deviation for each GRN line | 📋 |
+| Qty split | Enter AcceptedQty and RejectedQty per line | 📋 |
+| Rejection reason | Free text + reason code (Damaged / Wrong Spec / Short Qty / Other) | 📋 |
+| Accept action | Accepted qty → moves to StoreStock (increments stock ledger) | 📋 |
+| Reject action | Rejected qty → creates Return-to-Vendor (RTV) flag on GRN line | 📋 |
+| GRN status update | QC completion updates GRN to Accepted / PartialAccepted / Rejected | 📋 |
+
+### 4.17 Inventory / Store Ledger
+
+| Feature | Detail | Status |
+|---|---|---|
+| Stock ledger per project | Running balance: Opening + Receipts − Issues = Closing | 📋 |
+| Auto stock-in | Accepted QC qty automatically posts to StoreStock | 📋 |
+| Auto stock-out | Issued qty on approved DC automatically deducts from StoreStock | 📋 |
+| Minimum stock alert | Alert badge when CurrentQty ≤ MinStockLevel | 📋 |
+| Stock valuation | Weighted average cost per item | 📋 |
+| Stock report | Current stock list with value; filter by project | 📋 |
+| Item search | Search by item code or description | 📋 |
+
+### 4.18 Material Issue / Delivery Challan (DC)
+
+| Feature | Detail | Status |
+|---|---|---|
+| DC creation | Select project store, destination site, items and qty | 📋 |
+| Quantity validation | Cannot issue more than available stock; system warns | 📋 |
+| Authorization | PM or Admin must approve DC before issuance | 📋 |
+| DC fields | DC Number (auto), Date, From Store, To Site, Requested By, Issued By | 📋 |
+| Status workflow | Draft → Approved → Issued | 📋 |
+| Auto project expense | On issue, TotalCost (IssuedQty × UnitCost) posted to ProjectExpenses with Category=Materials | 📋 |
+| Stock deduction | Issued qty deducted from StoreStock on status = Issued | 📋 |
+| Print DC | Printable delivery challan document with project header and logo | 📋 |
+
+### 4.19 Vendor Payments (AP)
+
+| Feature | Detail | Status |
+|---|---|---|
+| Payment types | Advance / COD / PartialPayment / FinalPayment | 📋 |
+| Advance request | Create advance payment before GRN — linked to PO | 📋 |
+| Bill matching | Match payment to VendorBill (GRN-based); outstanding balance tracked | 📋 |
+| Payment methods | BankTransfer / Cheque / Cash / Online | 📋 |
+| Outstanding balance | VendorBill total − paid amount = balance due | 📋 |
+| Vendor statement | Full AP ledger per vendor: bills, payments, running balance | 📋 |
+| Admin/Finance only | No PM or Engineer access | 📋 |
+
+### 4.20 Customer Invoicing Enhancements
+
+Extends the existing ZATCA invoicing module.
+
+| Feature | Detail | Status |
+|---|---|---|
+| Minimum invoice amount | `MinInvoiceAmount` per project (customer threshold, e.g. PKR 3,000,000) | 📋 |
+| Threshold enforcement | Warning shown when invoice total < MinInvoiceAmount; Admin can override | 📋 |
+| BOQ-linked milestones | Optional link from invoice to BOQ scope/milestone for progress billing | 📋 |
+
 ---
 
 ## 5. Performance & Mobile Rules
@@ -334,7 +574,21 @@ APP_URL=https://indigobuilders.deltatechcorp.com
 | ~~MEDIUM~~ | ~~**Capacitor abstraction layer**~~ | ~~High~~ | ✅ **Done** — `storage`, `browser`, `files` services wrap all browser APIs across 7 files |
 | LOW | **AWS Riyadh migration** | High | ❌ Infrastructure change — PDPL long-term requirement |
 
-### 7.2 Built Beyond PRD (Additions)
+### 7.2 Planned v3.6 — Procurement-to-Payment Lifecycle
+
+| Priority | Module | Effort | Status |
+|---|---|---|---|
+| 1 | **BOQ Management** | Medium | 📋 Planned — foundation for all procurement |
+| 2 | **Vendor Registry (AVL)** | Low | 📋 Planned — prerequisite for RFQ |
+| 3 | **RFQ Management** | Medium | 📋 Planned — standardise vendor selection |
+| 4 | **GRN / Inward Gate Pass** | Medium | 📋 Planned — core store receipt |
+| 5 | **Inventory / Store Ledger** | Medium | 📋 Planned — stock tracking |
+| 6 | **Material Issue / DC** | Medium | 📋 Planned — site delivery, auto-expense |
+| 7 | **Vendor Payments (AP)** | Low | 📋 Planned — advance / COD / net terms |
+| 8 | **QC Inspection** | Low | 📋 Planned — accept/reject on receipt |
+| 9 | **Customer Invoice Min Amount** | Low | 📋 Planned — per-project billing threshold |
+
+### 7.3 Built Beyond PRD (Additions)
 
 | Feature | Description |
 |---|---|
@@ -364,7 +618,21 @@ These features were designed and implemented during development, not in the orig
 
 ## 8. Next Priorities
 
-All priority items are now complete. The only remaining infrastructure item is:
+### 8.1 v3.6 Build Queue (Procurement-to-Payment)
+
+| # | Module | Key Deliverable |
+|---|---|---|
+| 1 | BOQ Management | BOQ view + Excel import, revision tracking, procurement status per line |
+| 2 | Vendor Registry | Vendor CRUD, AVL approval workflow, chip filters |
+| 3 | RFQ | RFQ creation, vendor email, quote comparison matrix, award → PO |
+| 4 | GRN / IGP | Receive against PO (partial), vendor bill upload, QC trigger |
+| 5 | Inventory | Stock ledger, auto stock-in from QC, min-stock alerts |
+| 6 | Material Issue / DC | DC creation, auth workflow, auto-expense to project, print |
+| 7 | Vendor Payments | AP payments, advance, bill matching, vendor statement |
+| 8 | QC Inspection | Per-item accept/reject, accepted qty → stock |
+| 9 | Invoice Min Amount | `MinInvoiceAmount` on Projects, threshold warning |
+
+### 8.2 Infrastructure (Ongoing)
 
 1. ~~**Brotli compression**~~ — ✅ Done (Node zlib middleware + IIS web.config)
 2. ~~**Capacitor abstraction**~~ — ✅ Done (`storage`, `browser`, `files` service layer)
