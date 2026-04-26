@@ -25,6 +25,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        skipWaiting: true,        // activate new SW immediately on install
+        clientsClaim: true,       // new SW takes control of all clients immediately
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB — logo.png is 2.2 MB
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
