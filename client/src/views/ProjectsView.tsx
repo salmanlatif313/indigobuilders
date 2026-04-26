@@ -331,6 +331,13 @@ export default function ProjectsView() {
                 </div>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{C('status')}</label>
+                <select className="input-field" value={form.Status || 'Active'}
+                  onChange={e => setForm(f => ({ ...f, Status: e.target.value }))}>
+                  {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{T('manager')}</label>
                 <select className="input-field" value={form.ManagerUserID || ''}
                   onChange={e => setForm(f => ({ ...f, ManagerUserID: e.target.value ? parseInt(e.target.value) : undefined }))}>
@@ -339,22 +346,13 @@ export default function ProjectsView() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{C('status')}</label>
-                <select className="input-field" value={form.Status || 'Active'}
-                  onChange={e => setForm(f => ({ ...f, Status: e.target.value }))}>
-                  {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {lang === 'ar' ? 'الحد الأدنى لقيمة الفاتورة' : 'Min Invoice Amount'}
+                </label>
+                <input type="number" className="input-field" value={(form as Record<string, unknown>).MinInvoiceAmount as number || ''}
+                  placeholder={lang === 'ar' ? 'اتركه فارغاً إذا لم يكن هناك حد أدنى' : 'Leave blank if no minimum'}
+                  onChange={e => setForm(f => ({ ...f, MinInvoiceAmount: e.target.value ? parseFloat(e.target.value) : undefined }))} />
               </div>
-              {users.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{T('manager')}</label>
-                  <select className="input-field" value={form.ManagerUserID || ''}
-                    onChange={e => setForm(f => ({ ...f, ManagerUserID: e.target.value ? Number(e.target.value) : undefined }))}>
-                    <option value="">{lang === 'ar' ? '— اختر —' : '— Select —'}</option>
-                    {users.map(u => <option key={u.UserID} value={u.UserID}>{u.FullName}</option>)}
-                  </select>
-                </div>
-              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{C('notes')}</label>
                 <textarea className="input-field" rows={3} value={form.Notes || ''}

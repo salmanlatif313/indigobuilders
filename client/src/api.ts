@@ -293,7 +293,7 @@ export interface Project {
   ContractValue: number; StartDate: string; EndDate: string; Status: string;
   Location: string; ManagerUserID: number; ManagerName: string;
   ActiveLabor: number; InvoiceCount: number; TotalInvoiced: number;
-  TotalExpenses: number; Notes: string;
+  TotalExpenses: number; Notes: string; MinInvoiceAmount?: number;
 }
 
 export interface Labor {

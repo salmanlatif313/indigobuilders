@@ -32,7 +32,15 @@
       "Read(//c/Users/Administrator/AppData/Local/Programs/Python//**)",
       "Bash(/c/Python314/python *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(git stash *)",
+      "Bash(robocopy \"C:\\\\Projects\\\\IndigoBuilders\\\\client\\\\dist\" \"\\\\\\\\172.1.10.51\\\\c$\\\\indigobuilders\\\\client\\\\dist\" /MIR /R:2 /W:2 /NFL /NDL /NJH /NJS /NP)",
+      "Bash(echo \"robocopy exit: $?\")",
+      "Bash(robocopy \"C:\\\\Projects\\\\IndigoBuilders\\\\server\\\\dist\" \"\\\\\\\\172.1.10.51\\\\c$\\\\indigobuilders\\\\server\\\\dist\" /MIR /R:2 /W:2 /NFL /NDL /NJH /NJS /NP)",
+      "Bash(copy \"C:\\\\Projects\\\\IndigoBuilders\\\\deploy\\\\iis\\\\web.config\" \"\\\\\\\\172.1.10.51\\\\c$\\\\indigobuilders\\\\client\\\\dist\\\\web.config\")"
     ],
     "defaultMode": "bypassPermissions"
   }

@@ -109,15 +109,15 @@ router.get('/:id/financials', async (req: Request, res: Response) => {
 
 // POST /api/projects  (Admin, PM)
 router.post('/', requireRole('Admin', 'PM'), async (req: Request, res: Response) => {
-  const { projectCode, projectName, clientName, contractValue, startDate, endDate, status, location, managerUserID, notes } =
-    req.body as { projectCode: string; projectName: string; clientName?: string; contractValue?: number; startDate?: string; endDate?: string; status?: string; location?: string; managerUserID?: number; notes?: string };
-  if (!projectCode || !projectName) { res.status(400).json({ error: 'projectCode and projectName required' }); return; }
+  const { ProjectCode, ProjectName, ClientName, ContractValue, StartDate, EndDate, Status, Location, ManagerUserID, Notes, MinInvoiceAmount } =
+    req.body as { ProjectCode: string; ProjectName: string; ClientName?: string; ContractValue?: number; StartDate?: string; EndDate?: string; Status?: string; Location?: string; ManagerUserID?: number; Notes?: string; MinInvoiceAmount?: number };
+  if (!ProjectCode || !ProjectName) { res.status(400).json({ error: 'Project code and name are required' }); return; }
   try {
     const result = await runQueryResult(
-      `INSERT INTO Projects (ProjectCode, ProjectName, ClientName, ContractValue, StartDate, EndDate, Status, Location, ManagerUserID, Notes, ChangedBy)
+      `INSERT INTO Projects (ProjectCode, ProjectName, ClientName, ContractValue, StartDate, EndDate, Status, Location, ManagerUserID, Notes, MinInvoiceAmount, ChangedBy)
        OUTPUT INSERTED.ProjectID
-       VALUES (@projectCode, @projectName, @clientName, @contractValue, @startDate, @endDate, @status, @location, @managerUserID, @notes, @changedBy)`,
-      { projectCode, projectName, clientName: clientName || null, contractValue: contractValue || 0, startDate: startDate || null, endDate: endDate || null, status: status || 'Active', location: location || null, managerUserID: managerUserID || null, notes: notes || null, changedBy: req.user?.username }
+       VALUES (@projectCode, @projectName, @clientName, @contractValue, @startDate, @endDate, @status, @location, @managerUserID, @notes, @minInvoiceAmount, @changedBy)`,
+      { projectCode: ProjectCode, projectName: ProjectName, clientName: ClientName || null, contractValue: ContractValue || 0, startDate: StartDate || null, endDate: EndDate || null, status: Status || 'Active', location: Location || null, managerUserID: ManagerUserID || null, notes: Notes || null, minInvoiceAmount: MinInvoiceAmount || null, changedBy: req.user?.username }
     );
     res.status(201).json({ message: 'Project created', projectId: result.recordset[0]?.ProjectID });
   } catch (err: unknown) {
@@ -129,18 +129,19 @@ router.post('/', requireRole('Admin', 'PM'), async (req: Request, res: Response)
 
 // PUT /api/projects/:id  (Admin, PM)
 router.put('/:id', requireRole('Admin', 'PM'), async (req: Request, res: Response) => {
-  const { projectName, clientName, contractValue, startDate, endDate, status, location, managerUserID, notes } = req.body as {
-    projectName?: string; clientName?: string; contractValue?: number; startDate?: string; endDate?: string;
-    status?: string; location?: string; managerUserID?: number; notes?: string;
+  const { ProjectName, ClientName, ContractValue, StartDate, EndDate, Status, Location, ManagerUserID, Notes, MinInvoiceAmount } = req.body as {
+    ProjectName?: string; ClientName?: string; ContractValue?: number; StartDate?: string; EndDate?: string;
+    Status?: string; Location?: string; ManagerUserID?: number; Notes?: string; MinInvoiceAmount?: number;
   };
   try {
     await runQueryResult(
       `UPDATE Projects SET
          ProjectName=@projectName, ClientName=@clientName, ContractValue=@contractValue,
          StartDate=@startDate, EndDate=@endDate, Status=@status, Location=@location,
-         ManagerUserID=@managerUserID, Notes=@notes, ChangedBy=@changedBy, ChangeDate=GETDATE()
+         ManagerUserID=@managerUserID, Notes=@notes, MinInvoiceAmount=@minInvoiceAmount,
+         ChangedBy=@changedBy, ChangeDate=GETDATE()
        WHERE ProjectID=@id`,
-      { id: parseInt(req.params.id), projectName, clientName: clientName || null, contractValue: contractValue || 0, startDate: startDate || null, endDate: endDate || null, status: status || 'Active', location: location || null, managerUserID: managerUserID || null, notes: notes || null, changedBy: req.user?.username }
+      { id: parseInt(req.params.id), projectName: ProjectName, clientName: ClientName || null, contractValue: ContractValue || 0, startDate: StartDate || null, endDate: EndDate || null, status: Status || 'Active', location: Location || null, managerUserID: ManagerUserID || null, notes: Notes || null, minInvoiceAmount: MinInvoiceAmount || null, changedBy: req.user?.username }
     );
     res.json({ message: 'Project updated' });
   } catch (err) {
