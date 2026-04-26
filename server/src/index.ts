@@ -15,6 +15,14 @@ import expensesRoutes from './routes/expenses';
 import complianceRoutes from './routes/compliance';
 import paymentRoutes from './routes/payments';
 import purchaseOrderRoutes from './routes/purchase-orders';
+import vendorRoutes from './routes/vendors';
+import boqRoutes from './routes/boq';
+import rfqRoutes from './routes/rfq';
+import grnRoutes from './routes/grn';
+import qcRoutes from './routes/qc';
+import inventoryRoutes from './routes/inventory';
+import materialIssueRoutes from './routes/material-issue';
+import vendorPaymentRoutes from './routes/vendor-payments';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
@@ -38,6 +46,14 @@ app.use('/api/expenses', expensesRoutes);
 app.use('/api/compliance', complianceRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
+app.use('/api/vendors', vendorRoutes);
+app.use('/api/boq', boqRoutes);
+app.use('/api/rfq', rfqRoutes);
+app.use('/api/grn', grnRoutes);
+app.use('/api/qc', qcRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/material-issue', materialIssueRoutes);
+app.use('/api/vendor-payments', vendorPaymentRoutes);
 
 // Serve React in production
 if (process.env.NODE_ENV === 'production') {

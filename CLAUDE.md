@@ -94,6 +94,35 @@ Copy `.env.example` to `.env`. Key variables:
 
 ---
 
+## Users Management Module
+
+- **Route**: `server/src/routes/auth.ts` → user CRUD endpoints under `/api/auth/users`
+- **View**: `client/src/views/UsersView.tsx`
+- **Access**: Admin only — CRUD for all users; Finance/PM/Engineer can only change their own password
+- **Endpoints**: List users, create user, update user (role, active status), reset password (admin), change own password
+
+---
+
+## Procurement-to-Payment Modules (v3.6 — Planned)
+
+Nine new modules covering the full construction procurement lifecycle. All are 📋 Planned — not yet built.
+
+| Module | Route (planned) | View (planned) | Key Tables |
+|---|---|---|---|
+| BOQ Management | `/api/boq` | `BOQView.tsx` | `BOQ`, `BOQItems` |
+| Vendor Registry | `/api/vendors` | `VendorsView.tsx` | `Vendors` |
+| RFQ | `/api/rfq` | `RFQView.tsx` | `RFQHeaders`, `RFQLines`, `RFQVendorQuotes` |
+| GRN / IGP | `/api/grn` | `GRNView.tsx` | `GRNHeaders`, `GRNLines`, `VendorBills` |
+| QC Inspection | `/api/qc` | `QCView.tsx` | `QCInspections`, `QCInspectionLines` |
+| Inventory | `/api/inventory` | `InventoryView.tsx` | `StoreStock` |
+| Material Issue / DC | `/api/material-issue` | `MaterialIssueView.tsx` | `MaterialIssueHeaders`, `MaterialIssueLines` |
+| Vendor Payments | `/api/vendor-payments` | `VendorPaymentsView.tsx` | `VendorPayments` |
+| Invoice Min Amount | existing `/api/invoices` | existing `InvoicesView.tsx` | `Projects.MinInvoiceAmount` |
+
+**Workflow chain:** BOQ → Procurement Plan → RFQ → PO → GRN/IGP → QC → Stock → DC → Project Expense → Customer Invoice
+
+---
+
 ## Purchase Orders Module
 
 - **Route**: `server/src/routes/purchase-orders.ts` → mounted at `/api/purchase-orders`

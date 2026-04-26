@@ -14,8 +14,16 @@ import ReportsView from './views/ReportsView';
 import ExpensesView from './views/ExpensesView';
 import ComplianceView from './views/ComplianceView';
 import PurchaseOrdersView from './views/PurchaseOrdersView';
+import VendorsView from './views/VendorsView';
+import BOQView from './views/BOQView';
+import RFQView from './views/RFQView';
+import GRNView from './views/GRNView';
+import QCView from './views/QCView';
+import InventoryView from './views/InventoryView';
+import MaterialIssueView from './views/MaterialIssueView';
+import VendorPaymentsView from './views/VendorPaymentsView';
 
-type Page = 'dashboard' | 'projects' | 'labor' | 'invoices' | 'expenses' | 'users' | 'wps' | 'reports' | 'compliance' | 'purchase-orders';
+type Page = 'dashboard' | 'projects' | 'labor' | 'invoices' | 'expenses' | 'users' | 'wps' | 'reports' | 'compliance' | 'purchase-orders' | 'vendors' | 'boq' | 'rfq' | 'grn' | 'qc' | 'inventory' | 'material-issue' | 'vendor-payments';
 
 function AppInner() {
   const { user, loading } = useAuth();
@@ -42,6 +50,14 @@ function AppInner() {
     reports:    <ReportsView />,
     compliance:       <ComplianceView />,
     'purchase-orders': <PurchaseOrdersView />,
+    vendors:           <VendorsView />,
+    boq:               <BOQView />,
+    rfq:               <RFQView />,
+    grn:               <GRNView />,
+    qc:                <QCView />,
+    inventory:         <InventoryView />,
+    'material-issue':  <MaterialIssueView />,
+    'vendor-payments': <VendorPaymentsView />,
   };
 
   return (
