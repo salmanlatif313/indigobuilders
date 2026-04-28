@@ -705,3 +705,150 @@ Skip manual approval when a PO or expense is within an approved budget line.
 | Medium | 10.4 PDF Template Engine | POs and invoices need professional PDFs |
 | Low | 10.3 Multi-Company Support | Future growth when second entity is added |
 | Low | 10.6 Dark Mode | User experience improvement |
+
+---
+
+## 12. Multi-Tenancy — Database-per-Tenant Architecture
+
+**Chosen approach: Database-per-tenant** (strongest isolation).
+Each client company gets its own dedicated MSSQL database on the same server. The application server routes every request to the correct database based on the tenant resolved from the login JWT. No tenant data ever touches another tenant's database — not even in edge-case query bugs.
+
+> This section supersedes item 10.3 (Multi-Company Support). Database-per-tenant is the production-grade version of that item.
+
+---
+
+### 12.1 Master Registry Database [New Module]
+A single lightweight `IndigoBuilders_Master` database holds the tenant directory and nothing else.
+- Tables: `Tenants`, `TenantAdmins`
+- `Tenants` fields: TenantID (UUID), Slug (e.g. `acme`), CompanyName, CompanyNameAr, VATNumber, DatabaseName (e.g. `IB_Acme`), PlanTier, IsActive, CreatedAt, Notes
+- `TenantAdmins` fields: TenantID, Email, PasswordHash — super-admin accounts that can bootstrap a new tenant before its own Users table exists
+- This database is never exposed through the API — only the internal provisioning layer reads it
+- **Source:** Prerequisite for database-per-tenant — the server needs a trusted directory to map an incoming request to the correct database name before opening any connection
+
+### 12.2 Dynamic Connection Pool (Tenant Router) [New Module]
+Replace the current single `db.ts` pool with a tenant-aware pool manager.
+- File: `server/src/tenantDb.ts` (replaces `server/src/db.ts` for all tenant-scoped queries)
+- On first request for a tenant: create an `mssql` connection pool keyed by `TenantID`, connect to `IB_{Slug}` database, cache the pool in a `Map<string, ConnectionPool>`
+- Pool eviction: idle pools disconnected after 15 minutes to conserve connections
+- All existing `runQuery` / `runQueryResult` calls gain a `tenantId` parameter — internally resolved to the correct pool
+- Master DB has its own separate singleton pool (`masterPool`) used only by the provisioning layer
+- **Source:** Gap in `server/src/db.ts` — single hardcoded `SQL_DATABASE` env var; no mechanism to switch databases per request
+
+### 12.3 Tenant Resolution Middleware [New Module]
+Identify which tenant owns each incoming request before any route handler runs.
+- File: `server/src/middleware/resolveTenant.ts`
+- **Strategy 1 — Subdomain (recommended):** `acme.indigobuilders.app` → slug = `acme` → look up Tenants table → attach `req.tenant` to request
+- **Strategy 2 — JWT claim (fallback):** JWT payload carries `tenantId`; middleware validates it against the master DB on first use and caches the result
+- Both strategies set `req.tenant = { tenantId, slug, databaseName }` before `requireAuth` runs
+- Unknown slug → 404; inactive tenant → 403
+- Applied globally before all `/api/*` routes in `index.ts`
+- **Source:** Gap in `server/src/index.ts` — no tenant context in the request pipeline; all routes assume a single fixed database
+
+### 12.4 Auth Layer Changes [Quick Win]
+JWT tokens must be scoped to a tenant so a user from Tenant A cannot authenticate against Tenant B.
+- Login flow: client sends `{ username, password, slug }` → server resolves tenant DB → validates credentials from that tenant's `Users` table → issues JWT containing `{ userId, roleId, tenantId, slug }`
+- `requireAuth.ts` updated to: verify JWT signature → extract `tenantId` → confirm it matches `req.tenant.tenantId` (set by resolveTenant middleware) → reject if mismatch
+- Token is invalid across tenants even if the secret is shared — `tenantId` mismatch is an explicit reject
+- Refresh tokens (from item 10.9) stored per-tenant in the tenant's own DB, not a shared table
+- **Source:** Gap in `server/src/middleware/requireAuth.ts` — JWT currently contains only `userId` and `roleId`; no tenant binding; a token from one company could theoretically be replayed against another company's endpoint
+
+### 12.5 Tenant Provisioning API [New Module]
+Super-admin endpoint to create a new tenant database and seed it.
+- Route: `POST /internal/tenants` (bound to localhost only — not exposed through IIS/reverse proxy)
+- Steps executed in order:
+  1. Validate slug is unique in master DB
+  2. Run `CREATE DATABASE IB_{Slug}` on the MSSQL server
+  3. Run the full `schema.sql` against the new database (creates all tables, views, default roles)
+  4. Insert default Admin user (`admin` / generated password) into the new tenant's `Users` table
+  5. Insert tenant record into `IndigoBuilders_Master.Tenants`
+  6. Return: `{ tenantId, slug, databaseName, adminPassword }`
+- Script alternative: `scripts/provision_tenant.ts` — CLI version for ops use
+- **Source:** Gap in system — no tenant lifecycle management; currently a new company requires manually duplicating the entire database and reconfiguring env vars
+
+### 12.6 Schema Migration Runner [New Module]
+When the application schema changes, all tenant databases must be updated in lockstep.
+- File: `scripts/migrate.ts`
+- Migrations stored as numbered SQL files: `migrations/0001_add_retention_release.sql`, `migrations/0002_add_approval_matrix.sql`, etc.
+- `Tenants` master table tracks `LastMigrationVersion` per tenant
+- Runner: connects to each active tenant DB in sequence → checks current version → applies missing migrations in order → updates `LastMigrationVersion`
+- Dry-run mode: `--dry-run` flag prints SQL without executing
+- Rollback: each migration file has an `-- rollback:` section
+- Run as part of `deploy-to-share.bat` before PM2 restart
+- **Source:** Gap in deployment pipeline — `deploy-to-share.bat` builds and restarts the app but has no DB migration step; in a multi-tenant system, manual schema changes per DB are not feasible
+
+### 12.7 Frontend Tenant Identification [Quick Win]
+The React client must know which tenant it belongs to before showing the login screen.
+- **Option A — Subdomain (recommended):** `acme.indigobuilders.app` → React reads `window.location.hostname` → extracts slug → sends slug with login request → displays company name and logo from a public endpoint `GET /api/tenant/info?slug=acme`
+- **Option B — Login screen slug field:** Single domain; user types slug + username + password on login; slug stored in `localStorage` for subsequent requests
+- After login: JWT (containing `tenantId`) is stored as usual; all subsequent API calls go to the same domain (subdomain routing is handled at the reverse proxy / IIS level)
+- Company logo and name displayed in sidebar — fetched from tenant profile, not hardcoded
+- **Source:** Gap in `LoginView.tsx` — single hardcoded backend URL; no tenant selection UI or subdomain awareness
+
+### 12.8 ZATCA Per-Tenant Credentials [Quick Win]
+Each tenant is a separate legal VAT-registered entity and needs its own ZATCA onboarding.
+- Each tenant's database stores its own: `ZatcaCSID`, `ZatcaPrivateKey`, `ZatcaPublicKey`, `ZatcaCertificate`, `VATNumber`, `CRNumber`
+- The ZATCA invoice generation and clearance module (item 5.2) reads credentials from the current tenant's DB — never from env vars
+- Onboarding flow: Tenant Admin triggers ZATCA CSR generation from the portal → server generates key pair → submits CSR to Fatoora sandbox/production → stores returned CSID in tenant DB
+- No two tenants share signing credentials; a compromised credential for one tenant does not affect others
+- **Source:** Regulatory requirement — ZATCA Phase 2 CSID and cryptographic stamp are issued per VAT registration number; sharing credentials across companies is a compliance violation
+
+### 12.9 Super-Admin Portal [New Module]
+A dedicated interface (separate from the main ERP) for the platform operator to manage all tenants.
+- Accessible only via `admin.indigobuilders.app` or a protected internal route
+- Features:
+  - List all tenants: name, slug, plan, active status, last login date, DB size
+  - Provision new tenant (calls item 12.5 API)
+  - Suspend / reactivate tenant (sets `IsActive = false` in master DB)
+  - Trigger migration runner for a specific tenant or all tenants
+  - View per-tenant storage usage and user count
+  - Impersonate a tenant (generate a short-lived admin token for support purposes — fully logged)
+- Authentication: separate super-admin credentials stored in `IndigoBuilders_Master.TenantAdmins` only
+- **Source:** Operational need — with multiple tenant databases, managing them via direct SQL or separate config files is not scalable; a control plane is mandatory
+
+### 12.10 Per-Tenant Backup & Restore [Quick Win]
+Extend the automated backup from item 10.10 to handle all tenant databases.
+- Migration runner maintains a tenant list; backup script iterates the same list
+- Each tenant gets its own backup folder: `\\backup-share\IB_Acme\`, `\\backup-share\IB_Techco\`
+- Backup schedule: full daily, differential hourly — per tenant, staggered to avoid I/O spikes
+- Restore: Super-Admin portal lists available backups per tenant and can trigger a restore with one click (confirmation required)
+- Retention policy: configurable per plan tier (e.g., Basic = 7 days, Pro = 30 days, Enterprise = 90 days)
+- **Source:** Extension of item 10.10 — single-tenant backup strategy does not scale; each tenant must be independently restorable without affecting other tenants
+
+### 12.11 Tenant Isolation Guarantees (Security Checklist)
+Architectural rules that must be enforced to maintain isolation.
+
+| Rule | Enforcement Point |
+|---|---|
+| Every DB query runs against the tenant pool resolved from `req.tenant` | `tenantDb.ts` — pool keyed by TenantID, no global default pool |
+| JWT `tenantId` must match `req.tenant.tenantId` on every authenticated request | `requireAuth.ts` — explicit mismatch → 401 |
+| Master DB is never queried from a tenant-scoped route | Code review rule + ESLint custom rule banning `masterPool` import in `routes/` |
+| Tenant slug resolution uses a read-only cached lookup — no user input reaches the DB query | `resolveTenant.ts` — slug validated against allowlist from cache, parameterized query only |
+| File uploads (documents, attachments) stored in per-tenant folders: `uploads/{tenantId}/` | File storage middleware — path constructed from `req.tenant.tenantId`, not from user input |
+| Logs never include cross-tenant data | Logging middleware — log line prefixed with `[tenantId]`, sensitive fields masked |
+| ZATCA credentials never shared or logged | Stored encrypted at rest in tenant DB; never returned in API responses |
+
+### 12.12 Deployment Architecture Changes [Quick Win]
+The existing single-app PM2 + IIS setup needs minor changes to support multi-tenancy.
+- **IIS:** Add wildcard subdomain binding `*.indigobuilders.app → 172.1.10.51:4000`; a single IIS site handles all tenants via the subdomain routing middleware
+- **PM2:** No change needed — one `indigobuilders-api` process handles all tenants; connection pools are managed in-process
+- **DNS:** Wildcard A record `*.indigobuilders.app → server IP`; each new tenant gets a subdomain automatically from the provisioning step (no manual DNS entry per tenant)
+- **SSL:** Wildcard certificate (`*.indigobuilders.app`) from Let's Encrypt or a CA; single cert covers all tenant subdomains
+- **Environment variables:** Remove `SQL_DATABASE` (no longer a fixed value); keep `DB_SERVER`, `SQL_USER`, `SQL_PASSWORD`, `MASTER_DB=IndigoBuilders_Master`
+- **Source:** Gap in `deploy/iis/deploy-to-share.bat` and PM2 config — hardcoded single-app assumptions; wildcard DNS + SSL + IIS wildcard binding resolves all of them without restructuring the app server
+
+---
+
+### Multi-Tenancy Build Sequence
+
+Build in this order — each step is a prerequisite for the next:
+
+1. **Master DB + Tenant table** (12.1) — the directory everything else reads from
+2. **Schema migration runner** (12.6) — needed before provisioning so new tenant DBs get a clean schema
+3. **Dynamic connection pool** (12.2) — replaces `db.ts`; all subsequent work builds on this
+4. **Tenant resolution middleware** (12.3) — attaches `req.tenant` before auth runs
+5. **Auth layer changes** (12.4) — JWT gains `tenantId`; login flow updated
+6. **Tenant provisioning API** (12.5) — can now create tenant DBs end-to-end
+7. **Frontend tenant identification** (12.7) — login screen becomes tenant-aware
+8. **ZATCA per-tenant credentials** (12.8) — compliance-correct invoicing per company
+9. **Super-Admin portal** (12.9) — operational control plane
+10. **Per-tenant backup** (12.10) — data safety at scale
