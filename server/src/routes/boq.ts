@@ -162,8 +162,17 @@ router.delete('/:id', requireAuth, requireRole('Admin'), async (req: Request, re
 router.post('/:id/import', requireAuth, requireRole('Admin', 'PM'), async (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
   const { items, replaceExisting } = req.body as {
-    items: { serialNo?: string; mainScope?: string; category?: string; description: string;
-             unit?: string; quantity: number; unitRate: number; profitPct?: number }[];
+    // Client sends PascalCase (BOQItem interface); accept both casings for resilience
+    items: {
+      SerialNo?: string; serialNo?: string;
+      MainScope?: string; mainScope?: string;
+      Category?: string; category?: string;
+      Description?: string; description?: string;
+      Unit?: string; unit?: string;
+      Quantity?: number; quantity?: number;
+      UnitRate?: number; unitRate?: number;
+      ProfitPct?: number; profitPct?: number;
+    }[];
     replaceExisting?: boolean;
   };
 
@@ -179,10 +188,23 @@ router.post('/:id/import', requireAuth, requireRole('Admin', 'PM'), async (req: 
 
     let totalAmount = 0;
     for (const it of items) {
-      const amt = Number(it.quantity) * Number(it.unitRate);
-      const profitAmt = amt * (Number(it.profitPct || 0) / 100);
+      // Normalise — accept PascalCase or camelCase from client
+      const desc     = it.Description     ?? it.description     ?? '';
+      const serial   = it.SerialNo        ?? it.serialNo        ?? null;
+      const scope    = it.MainScope       ?? it.mainScope       ?? null;
+      const cat      = it.Category        ?? it.category        ?? null;
+      const unit     = it.Unit            ?? it.unit            ?? null;
+      const qty      = Number(it.Quantity ?? it.quantity ?? 0);
+      const rate     = Number(it.UnitRate ?? it.unitRate ?? 0);
+      const pctRaw   = Number(it.ProfitPct ?? it.profitPct ?? 0);
+
+      if (!desc) continue; // skip blank rows
+
+      const amt            = qty * rate;
+      const profitAmt      = amt * (pctRaw / 100);
       const totalWithProfit = amt + profitAmt;
       totalAmount += totalWithProfit;
+
       await runQueryResult(`
         INSERT INTO BOQItems
           (BOQHeaderID,SerialNo,MainScope,Category,Description,Unit,Quantity,UnitRate,
@@ -190,21 +212,23 @@ router.post('/:id/import', requireAuth, requireRole('Admin', 'PM'), async (req: 
         VALUES (@boqId,@serial,@scope,@cat,@desc,@unit,@qty,@rate,
                 @amt,@profitPct,@profitAmt,@total,'NotStarted',@changedBy,GETDATE())
       `, {
-        boqId: id, serial: it.serialNo || null, scope: it.mainScope || null,
-        cat: it.category || null, desc: it.description, unit: it.unit || null,
-        qty: it.quantity, rate: it.unitRate, amt,
-        profitPct: it.profitPct || 0, profitAmt, total: totalWithProfit,
+        boqId: id, serial, scope, cat, desc, unit,
+        qty, rate, amt,
+        profitPct: pctRaw, profitAmt, total: totalWithProfit,
         changedBy: req.user?.username,
       });
     }
 
-    await runQueryResult(`
+    const totals = await runQuery<{ TotalAmount: number }>(`
       UPDATE BOQ SET TotalAmount = (SELECT ISNULL(SUM(TotalWithProfit),0) FROM BOQItems WHERE BOQHeaderID=@id),
         ChangedBy=@changedBy, ChangeDate=GETDATE()
+      OUTPUT INSERTED.TotalAmount
       WHERE BOQHeaderID=@id
     `, { id, changedBy: req.user?.username });
 
-    res.json({ message: `${items.length} items imported`, totalAmount });
+    // Return the DB-computed total (all items, including pre-existing when not replacing)
+    const fullTotal = totals[0]?.TotalAmount ?? totalAmount;
+    res.json({ message: `${items.length} items imported`, totalAmount: fullTotal });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error' }); }
 });
 

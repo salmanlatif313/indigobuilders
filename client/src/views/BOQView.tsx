@@ -43,6 +43,12 @@ export default function BOQView() {
   const [importing, setImporting]     = useState(false);
   const [importMsg, setImportMsg]     = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  // XLSX-specific state
+  const [xlsxSheets, setXlsxSheets]   = useState<string[]>([]);
+  const [xlsxSheet, setXlsxSheet]     = useState('');
+  const [xlsxItems, setXlsxItems]     = useState<Partial<BOQItem>[]>([]);
+  // Store raw sheet data (array-of-arrays per sheet name) so we don't need to hold the workbook
+  const xlsxRawSheets = useRef<Record<string, unknown[][]>>({});
 
   const load = () => {
     setLoading(true);
@@ -102,10 +108,30 @@ export default function BOQView() {
     catch (e: unknown) { alert(e instanceof Error ? e.message : 'Error'); }
   };
 
+  // RFC 4180 CSV parser — handles quoted fields containing commas and newlines
+  const parseCsvLine = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { current += '"'; i++; } // escaped quote
+        else inQuotes = !inQuotes;
+      } else if (ch === ',' && !inQuotes) {
+        result.push(current.trim()); current = '';
+      } else {
+        current += ch;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  };
+
   const parseCSV = (text: string): Partial<BOQItem>[] => {
-    const lines = text.trim().split('\n').slice(1); // skip header
+    const lines = text.trim().split('\n').slice(1); // skip header row
     return lines.map(line => {
-      const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
+      const parts = parseCsvLine(line);
       return {
         SerialNo: parts[0] || '', MainScope: parts[1] || '', Category: parts[2] || '',
         Description: parts[3] || '', Unit: parts[4] || '',
@@ -115,25 +141,116 @@ export default function BOQView() {
     }).filter(it => it.Description);
   };
 
+  // Parse raw sheet data (array of arrays) into BOQ items, auto-detecting columns by header
+  const parseSheetData = (raw: unknown[][]): Partial<BOQItem>[] => {
+    // Find header row: first row containing a cell with "description" (case-insensitive)
+    const headerIdx = raw.findIndex(row =>
+      Array.isArray(row) && row.some(c => String(c).toLowerCase().includes('description'))
+    );
+    if (headerIdx < 0) return [];
+
+    const headers = (raw[headerIdx] as unknown[]).map(h =>
+      String(h ?? '').toLowerCase().replace(/[\r\n]+/g, ' ').trim()
+    );
+
+    const col = (keywords: string[], exclude: string[] = []): number =>
+      headers.findIndex(h => keywords.some(k => h.includes(k)) && exclude.every(e => !h.includes(e)));
+
+    const idx = {
+      serial:   col(['serial', 'no.']),
+      scope:    col(['scope', 'main']),
+      category: col(['item', 'category', 'sub'], ['price', 'amount']),
+      desc:     col(['description']),
+      unit:     col(['unit'], ['price', 'rate', 'amount', 'crnt', 'converted']),
+      qty:      col(['qty', 'quantity']),
+      rate:     col(['rate', 'mrkt', 'mkt'], ['amount', 'converted', 'profit']),
+      profit:   col(['profit'], []),   // first profit column = %
+    };
+
+    const get = (row: unknown[], i: number) => i >= 0 ? String(row[i] ?? '').trim() : '';
+    const num = (row: unknown[], i: number) => i >= 0 ? parseFloat(String(row[i] ?? '0')) || 0 : 0;
+
+    const result: Partial<BOQItem>[] = [];
+    for (let r = headerIdx + 1; r < raw.length; r++) {
+      const row = raw[r] as unknown[];
+      if (!row || !row.length) continue;
+      const desc = get(row, idx.desc);
+      if (!desc) continue;
+      result.push({
+        SerialNo:    get(row, idx.serial),
+        MainScope:   get(row, idx.scope),
+        Category:    get(row, idx.category),
+        Description: desc,
+        Unit:        get(row, idx.unit),
+        Quantity:    num(row, idx.qty),
+        UnitRate:    num(row, idx.rate),
+        ProfitPct:   num(row, idx.profit),
+      });
+    }
+    return result;
+  };
+
+  const handleSheetSelect = (sheetName: string) => {
+    setXlsxSheet(sheetName);
+    const raw = xlsxRawSheets.current[sheetName] || [];
+    const parsed = parseSheetData(raw);
+    setXlsxItems(parsed);
+    setImportMsg(parsed.length
+      ? `📊 ${parsed.length} rows detected from "${sheetName}". Click Import to proceed.`
+      : `⚠️ No data rows found in "${sheetName}". Try a different sheet.`
+    );
+  };
+
   const handleImport = async () => {
-    if (!importBOQId || !csvText.trim()) { alert('Select a BOQ and paste CSV data'); return; }
-    const items = parseCSV(csvText);
-    if (!items.length) { alert('No valid rows found. Check CSV format.'); return; }
+    if (!importBOQId) { alert('Select a target BOQ'); return; }
+    const itemsToSend = xlsxItems.length > 0 ? xlsxItems : parseCSV(csvText);
+    if (!itemsToSend.length) { alert('No valid rows found. Check file format.'); return; }
     setImporting(true);
     try {
-      const r = await api.importBOQItems(importBOQId, items, true);
-      setImportMsg(`✅ ${items.length} items imported. Total: SAR ${fmtAmt(r.totalAmount)}`);
+      const r = await api.importBOQItems(importBOQId, itemsToSend, true);
+      setImportMsg(`✅ ${itemsToSend.length} items imported. Total: SAR ${fmtAmt(r.totalAmount)}`);
+      setXlsxItems([]); setXlsxSheets([]); setXlsxSheet(''); 
       load();
     } catch (e: unknown) { setImportMsg(`❌ ${e instanceof Error ? e.message : 'Error'}`); }
     finally { setImporting(false); }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => setCsvText(ev.target?.result as string || '');
-    reader.readAsText(file);
+    setImportMsg('');
+    setXlsxItems([]); setXlsxSheets([]); setXlsxSheet(''); setCsvText('');
+
+    const isXlsx = /\.(xlsx|xls)$/i.test(file.name);
+    if (isXlsx) {
+      const buffer = await file.arrayBuffer();
+      const XLSX = await import('xlsx');   // lazy-loaded — only fetched when needed
+      const wb = XLSX.read(buffer, { type: 'array' });
+
+      // Pre-convert all sheets to raw arrays and store in ref (avoids holding workbook in state)
+      const rawMap: Record<string, unknown[][]> = {};
+      for (const name of wb.SheetNames) {
+        rawMap[name] = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: '' });
+      }
+      xlsxRawSheets.current = rawMap;
+      setXlsxSheets(wb.SheetNames);
+
+      // Auto-select first non-summary sheet (skip "Pivot", "Summary", "Cover", etc.)
+      const skip = /pivot|summary|cover|index/i;
+      const autoSheet = wb.SheetNames.find(n => !skip.test(n)) || wb.SheetNames[0];
+      setXlsxSheet(autoSheet);
+      const parsed = parseSheetData(rawMap[autoSheet] || []);
+      setXlsxItems(parsed);
+      setImportMsg(parsed.length
+        ? `📊 ${parsed.length} rows detected from "${autoSheet}". Click Import to proceed.`
+        : `⚠️ No data found in "${autoSheet}". Select a different sheet below.`
+      );
+    } else {
+      // CSV / plain text
+      const reader = new FileReader();
+      reader.onload = ev => setCsvText(ev.target?.result as string || '');
+      reader.readAsText(file);
+    }
   };
 
   const downloadCSV = () => {
@@ -154,10 +271,10 @@ export default function BOQView() {
         <div className="flex gap-2 flex-wrap">
           {canEdit && (
             <>
-              <button onClick={() => { setShowImport(true); setImportBOQId(null); setCsvText(''); setImportMsg(''); }}
+              <button onClick={() => { setShowImport(true); setImportBOQId(null); setCsvText(''); setImportMsg(''); setXlsxItems([]); setXlsxSheets([]); setXlsxSheet(''); }}
                 className="btn-secondary flex items-center gap-1 text-sm">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                Import CSV
+                Import BOQ
               </button>
               <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-1 text-sm">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
@@ -294,7 +411,7 @@ export default function BOQView() {
                         </td>
                       </tr>
                     ))}
-                    {!items.length && <tr><td colSpan={11} className="text-center py-8 text-gray-400">No items. Use "Import CSV" to load BOQ items.</td></tr>}
+                    {!items.length && <tr><td colSpan={11} className="text-center py-8 text-gray-400">No items. Use "Import BOQ" to load items from Excel or CSV.</td></tr>}
                   </tbody>
                 </table>
               )}
@@ -354,42 +471,88 @@ export default function BOQView() {
         </div>
       )}
 
-      {/* CSV Import Modal */}
+      {/* Import Modal — supports XLSX and CSV */}
       {showImport && (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/40 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg my-8">
             <div className="flex justify-between items-center p-6 border-b">
-              <h2 className="font-semibold text-lg">Import BOQ Items from CSV</h2>
-              <button onClick={() => setShowImport(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+              <h2 className="font-semibold text-lg">Import BOQ Items</h2>
+              <button onClick={() => {
+                setShowImport(false);
+                setXlsxItems([]); setXlsxSheets([]); setXlsxSheet(''); 
+              }} className="text-gray-400 hover:text-gray-600">✕</button>
             </div>
             <div className="p-6 space-y-4">
+              {/* Target BOQ */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Target BOQ *</label>
-                <select className="input-field" value={importBOQId || ''} onChange={e => setImportBOQId(parseInt(e.target.value))}>
+                <select className="input-field" value={importBOQId || ''} onChange={e => setImportBOQId(e.target.value ? parseInt(e.target.value) : null)}>
                   <option value="">Select BOQ...</option>
                   {boqs.map(b => <option key={b.BOQHeaderID} value={b.BOQHeaderID}>{b.BOQNumber} — {b.Title}</option>)}
                 </select>
               </div>
-              <div className="bg-blue-50 rounded-lg p-3 text-xs text-blue-700">
-                <strong>CSV Format:</strong> SerialNo, MainScope, Category, Description, Unit, Quantity, UnitRate, ProfitPct
-              </div>
+
+              {/* File upload — accepts XLSX and CSV */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Upload CSV File</label>
-                <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleFileSelect} className="input-field text-sm" />
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Upload File <span className="text-gray-400 font-normal">(Excel .xlsx or CSV .csv)</span>
+                </label>
+                <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,.txt"
+                  onChange={handleFileSelect} className="input-field text-sm" />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Or Paste CSV Data</label>
-                <textarea className="input-field font-mono text-xs" rows={8} value={csvText}
-                  onChange={e => setCsvText(e.target.value)}
-                  placeholder="SerialNo,MainScope,Category,Description,Unit,Quantity,UnitRate,ProfitPct" />
-              </div>
-              {importMsg && <div className={`text-sm p-3 rounded-lg ${importMsg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{importMsg}</div>}
+
+              {/* Sheet selector — shown when XLSX loaded with multiple sheets */}
+              {xlsxSheets.length > 1 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Sheet</label>
+                  <div className="flex flex-wrap gap-2">
+                    {xlsxSheets.map(s => (
+                      <button key={s} onClick={() => handleSheetSelect(s)}
+                        className={`px-3 py-1.5 text-xs rounded-lg border font-medium transition-colors ${
+                          xlsxSheet === s
+                            ? 'bg-brand-900 text-white border-brand-900'
+                            : 'bg-white text-gray-600 border-gray-300 hover:border-brand-900'
+                        }`}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* CSV hint — only shown when no XLSX loaded */}
+              {xlsxSheets.length === 0 && (
+                <>
+                  <div className="bg-blue-50 rounded-lg p-3 text-xs text-blue-700">
+                    <strong>CSV column order:</strong> SerialNo, MainScope, Category, Description, Unit, Quantity, UnitRate, ProfitPct
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Or paste CSV data</label>
+                    <textarea className="input-field font-mono text-xs" rows={6} value={csvText}
+                      onChange={e => { setCsvText(e.target.value); setImportMsg(''); }}
+                      placeholder="SerialNo,MainScope,Category,Description,Unit,Quantity,UnitRate,ProfitPct" />
+                  </div>
+                </>
+              )}
+
+              {/* Status / preview message */}
+              {importMsg && (
+                <div className={`text-sm p-3 rounded-lg ${
+                  importMsg.startsWith('✅') ? 'bg-green-50 text-green-700' :
+                  importMsg.startsWith('📊') ? 'bg-blue-50 text-blue-700' :
+                  importMsg.startsWith('⚠️') ? 'bg-yellow-50 text-yellow-700' :
+                  'bg-red-50 text-red-700'
+                }`}>{importMsg}</div>
+              )}
             </div>
             <div className="flex gap-3 p-6 border-t">
               <button className="btn-primary flex-1" onClick={handleImport} disabled={importing}>
-                {importing ? 'Importing...' : 'Import Items (Replace All)'}
+                {importing ? 'Importing...' : `Import Items (Replace All)${xlsxItems.length ? ` — ${xlsxItems.length} rows` : ''}`}
               </button>
-              <button className="btn-secondary flex-1" onClick={() => setShowImport(false)}>Close</button>
+              <button className="btn-secondary flex-1" onClick={() => {
+                setShowImport(false);
+                setXlsxItems([]); setXlsxSheets([]); setXlsxSheet(''); 
+              }}>Close</button>
             </div>
           </div>
         </div>
