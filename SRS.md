@@ -18,6 +18,7 @@
 | v3.4    | 2026-04-24 | S. Latif + AI | Blank screen fix (Vite 8 `define` → import pkg from package.json). Purchase Orders module added: full CRUD, email-based approval via SendGrid, status workflow (Draft→PendingApproval→Approved→Delivered), `PurchaseOrders` + `PurchaseOrderItems` + `PurchaseOrderApprovals` tables. |
 | v3.5    | 2026-04-26 | S. Latif + AI | Periodic documentation review. Verified all module statuses current. Users Management module explicitly documented. No new features since v3.4. |
 | v3.6    | 2026-04-26 | S. Latif + AI | Full procurement-to-payment lifecycle added: BOQ Management, Vendor Registry (AVL), RFQ, GRN/IGP, QC Inspection, Inventory/Store Ledger, Material Issue/DC, Vendor Payments (AP), Customer Invoice minimum amount. 15 new DB tables. Role permissions matrix expanded. |
+| v3.7    | 2026-04-28 | S. Latif + AI | All v3.6 procurement modules **built and live**. Bug fixes: Project create/edit PascalCase mismatch, BOQ import CSV parser (RFC 4180), BOQ import server PascalCase mismatch, BOQ XLSX import (SheetJS lazy-loaded), blank screen (SW skipWaiting + clientsClaim), build validator added. NADRA CEO BOQ imported (691 items, SAR 1.32B). Full procurement cycle end-to-end tested with 9 vendors, 6 RFQs, 7 POs, 6 GRNs, 6 QC inspections. |
 
 ---
 
@@ -574,26 +575,30 @@ Extends the existing ZATCA invoicing module.
 | ~~MEDIUM~~ | ~~**Capacitor abstraction layer**~~ | ~~High~~ | ✅ **Done** — `storage`, `browser`, `files` services wrap all browser APIs across 7 files |
 | LOW | **AWS Riyadh migration** | High | ❌ Infrastructure change — PDPL long-term requirement |
 
-### 7.2 Planned v3.6 — Procurement-to-Payment Lifecycle
+### 7.2 v3.6 Procurement-to-Payment Lifecycle — All Complete
 
-| Priority | Module | Effort | Status |
+| Priority | Module | Status | Notes |
 |---|---|---|---|
-| 1 | **BOQ Management** | Medium | 📋 Planned — foundation for all procurement |
-| 2 | **Vendor Registry (AVL)** | Low | 📋 Planned — prerequisite for RFQ |
-| 3 | **RFQ Management** | Medium | 📋 Planned — standardise vendor selection |
-| 4 | **GRN / Inward Gate Pass** | Medium | 📋 Planned — core store receipt |
-| 5 | **Inventory / Store Ledger** | Medium | 📋 Planned — stock tracking |
-| 6 | **Material Issue / DC** | Medium | 📋 Planned — site delivery, auto-expense |
-| 7 | **Vendor Payments (AP)** | Low | 📋 Planned — advance / COD / net terms |
-| 8 | **QC Inspection** | Low | 📋 Planned — accept/reject on receipt |
-| 9 | **Customer Invoice Min Amount** | Low | 📋 Planned — per-project billing threshold |
+| 1 | **BOQ Management** | ✅ | XLSX import (SheetJS lazy-loaded), CSV import, RFC 4180 parser, revision tracking |
+| 2 | **Vendor Registry (AVL)** | ✅ | CRUD, Approved/Pending/Blacklisted workflow, payment terms, rating |
+| 3 | **RFQ Management** | ✅ | Multi-vendor quote comparison matrix, award → auto PO, email flow |
+| 4 | **GRN / Inward Gate Pass** | ✅ | Partial receipts, auto QC trigger, PO auto-close on full receipt |
+| 5 | **Inventory / Store Ledger** | ✅ | Auto stock-in from QC, low-stock alerts, weighted avg cost |
+| 6 | **Material Issue / DC** | ✅ | Stock validation, PM/Admin auth, auto-posts to ProjectExpenses on issue |
+| 7 | **Vendor Payments (AP)** | ✅ | Advance/COD/Net terms, bill matching, vendor statement ledger |
+| 8 | **QC Inspection** | ✅ | Accept/Reject/AcceptWithDeviation, accepted qty → StoreStock |
+| 9 | **Customer Invoice Min Amount** | ✅ | `MinInvoiceAmount` on Projects, threshold warning on invoice |
 
 ### 7.3 Built Beyond PRD (Additions)
 
 | Feature | Description |
 |---|---|
 | **Purchase Orders** | Full PO module — CRUD, line items, email-based approval via SendGrid, status workflow, chip filters |
-| **Blank screen fix** | Vite 8 broke `define` replacement in dev mode; fixed by importing version from package.json |
+| **Blank screen fix (v3.4)** | Vite 8 `define` bug fixed by importing version from package.json |
+| **Blank screen fix (v3.7)** | PWA service worker `skipWaiting + clientsClaim` — new SW activates immediately after deploy, no stale-cache blank screens |
+| **Build validator** | `scripts/validate-build.js` — post-build smoke test; blocks deploy if `index.html` assets missing, banned tokens present, or SW lacks `skipWaiting`. Integrated into `npm run build:safe` and `deploy-to-share.bat` step [2b] |
+| **BOQ XLSX import** | SheetJS lazy-loaded (separate 415 KB chunk); auto-detects header row and column mapping; sheet selector for multi-sheet workbooks; tested with NADRA CEO.xlsx (691 items, SAR 1.32B) |
+| **Procurement seed data** | `scripts/seed_procurement.py` — creates vendors, RFQs, quotes, POs, GRNs, QC, stock, DCs and AP payments programmatically via API |
 
 ### 7.3 Original Beyond-PRD Features
 
@@ -618,25 +623,36 @@ These features were designed and implemented during development, not in the orig
 
 ## 8. Next Priorities
 
-### 8.1 v3.6 Build Queue (Procurement-to-Payment)
+### 8.1 v3.6 / v3.7 Build Queue — All Complete ✅
 
-| # | Module | Key Deliverable |
+| # | Module | Status |
 |---|---|---|
-| 1 | BOQ Management | BOQ view + Excel import, revision tracking, procurement status per line |
-| 2 | Vendor Registry | Vendor CRUD, AVL approval workflow, chip filters |
-| 3 | RFQ | RFQ creation, vendor email, quote comparison matrix, award → PO |
-| 4 | GRN / IGP | Receive against PO (partial), vendor bill upload, QC trigger |
-| 5 | Inventory | Stock ledger, auto stock-in from QC, min-stock alerts |
-| 6 | Material Issue / DC | DC creation, auth workflow, auto-expense to project, print |
-| 7 | Vendor Payments | AP payments, advance, bill matching, vendor statement |
-| 8 | QC Inspection | Per-item accept/reject, accepted qty → stock |
-| 9 | Invoice Min Amount | `MinInvoiceAmount` on Projects, threshold warning |
+| 1 | BOQ Management | ✅ Built — XLSX import, CSV import, revision tracking |
+| 2 | Vendor Registry | ✅ Built — CRUD, AVL workflow, chip filters |
+| 3 | RFQ | ✅ Built — quote matrix, award, status workflow |
+| 4 | GRN / IGP | ✅ Built — partial receipts, auto QC trigger |
+| 5 | Inventory | ✅ Built — auto stock-in, low-stock alerts |
+| 6 | Material Issue / DC | ✅ Built — auth workflow, auto-expense to project |
+| 7 | Vendor Payments | ✅ Built — advance/COD/net terms, vendor statement |
+| 8 | QC Inspection | ✅ Built — per-item decisions, accepted qty → stock |
+| 9 | Invoice Min Amount | ✅ Built — threshold on Projects, warning on save |
 
-### 8.2 Infrastructure (Ongoing)
+### 8.2 Next Candidates (v3.8)
 
-1. ~~**Brotli compression**~~ — ✅ Done (Node zlib middleware + IIS web.config)
-2. ~~**Capacitor abstraction**~~ — ✅ Done (`storage`, `browser`, `files` service layer)
-3. **AWS Riyadh migration** — PDPL long-term compliance; infrastructure decision (future)
+| # | Feature | Priority | Notes |
+|---|---|---|---|
+| 1 | **Vendor Bill attachment upload** | HIGH | Attach PDF/image to GRN/VendorBill — multer endpoint, served via API |
+| 2 | **RFQ → PO auto-generation** | HIGH | Create PO directly from awarded RFQ lines with one click |
+| 3 | **BOQ procurement status auto-update** | MEDIUM | When PO/GRN/DC is linked to a BOQ item, update `ProcurementStatus` automatically |
+| 4 | **DC print (Delivery Challan PDF)** | MEDIUM | Print-formatted DC with site header, logo, line items |
+| 5 | **Vendor performance rating on PO close** | LOW | Prompt to rate vendor when PO marked Delivered |
+
+### 8.3 Infrastructure (Ongoing)
+
+1. ~~**Brotli compression**~~ — ✅ Done
+2. ~~**Capacitor abstraction**~~ — ✅ Done
+3. ~~**Build validator + SW skipWaiting**~~ — ✅ Done (v3.7)
+4. **AWS Riyadh migration** — PDPL long-term compliance; infrastructure decision (future)
 
 ---
 
