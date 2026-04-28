@@ -543,16 +543,87 @@ Schedule and manage MSSQL database backups.
 
 ---
 
+## 11. Approval Matrix & Authorization Controls
+
+The current system has a single flat approval mechanism: PO approval emails every active Admin and Finance user. A proper approval matrix defines **who must approve what, at what value threshold, in what sequence**.
+
+### 11.1 Configurable Approval Matrix [New Module]
+Allow Admin to define approval rules per document type and value band.
+- Tables: `ApprovalMatrix`, `ApprovalSteps`
+- `ApprovalMatrix` fields: DocumentType (PO / Expense / ChangeOrder / VendorBill / MaterialIssue / Invoice), MinAmount, MaxAmount, IsActive
+- `ApprovalSteps` fields: MatrixID, StepOrder, ApproverRoleID, ApproverUserID (optional — specific user override), RequiredAll (all users of that role must approve vs. any one)
+- Example rules:
+  - PO < SAR 10,000 → PM approves only
+  - PO SAR 10,000–100,000 → Finance Manager then GM
+  - PO > SAR 100,000 → Finance Manager → GM → CEO (sequential)
+  - Expense any amount → PM approves
+  - Change Order any amount → PM → Finance → CEO (all three)
+
+### 11.2 Approval Workflow Engine [New Module]
+Generic engine that processes any document through its matrix-defined steps.
+- Tables: `ApprovalInstances`, `ApprovalInstanceSteps`
+- `ApprovalInstances`: DocumentType, DocumentID, CurrentStep, Status (Pending/Approved/Rejected/Cancelled), CreatedAt
+- `ApprovalInstanceSteps`: InstanceID, StepOrder, ApproverUserID, Decision (Pending/Approved/Rejected), DecisionDate, Comments
+- On submit: engine looks up matching matrix row, creates instance + steps
+- Sequential mode: next step only activates after previous is approved
+- Parallel mode: all approvers in step notified simultaneously; majority or all must approve
+- Rejection at any step → whole instance rejected, document returned to Draft
+- Escalation: if no decision within N days, auto-escalate to next role up
+
+### 11.3 Multi-Level PO Approval (Replaces Current Flat Approval) [Quick Win]
+Replace the current "email all Admin+Finance" approach with matrix-driven approval.
+- Same email token mechanism — but now only the correct approver for the current step receives the email
+- Approver sees: PO summary, current step number, total steps, previous approvals already given
+- After each approval, next approver is notified
+- PO status shows: `PendingApproval (Step 2 of 3 — awaiting GM)` instead of just `PendingApproval`
+
+### 11.4 Delegation / Out-of-Office [Quick Win]
+Allow an approver to delegate their approval authority to another user for a date range.
+- Tables: `ApprovalDelegations`
+- Fields: DelegatorUserID, DelegateUserID, FromDate, ToDate, DocumentTypes (comma-separated or all), Reason
+- When delegation is active: workflow engine routes approvals to delegate instead of delegator
+- Audit trail records both the original approver and the delegate
+
+### 11.5 Approval Dashboard [Quick Win]
+Dedicated view for each user to see all documents pending their approval action.
+- Table-driven: queries `ApprovalInstanceSteps` where ApproverUserID = current user AND Decision = Pending
+- Columns: Document type, Document number, Project, Amount, Submitted by, Waiting since, Days pending
+- One-click Approve / Reject with optional comment
+- Filter by: document type, project, date range
+- Badge count shown in sidebar navigation
+
+### 11.6 Approval History & Audit Log [Quick Win]
+Every document detail page shows the full approval chain.
+- Who approved / rejected, at what time, with what comment
+- Visible to Admin, Finance, and the document creator
+- Exportable as PDF (useful for audit and compliance)
+- Immutable: completed steps cannot be edited or deleted
+
+### 11.7 Budget-Based Auto-Approval [Quick Win]
+Skip manual approval when a PO or expense is within an approved budget line.
+- If the BOQ/budget for the project already covers the item and amount, auto-approve up to a configured threshold
+- Config: `AutoApproveIfInBudget = true/false` per document type
+- Still creates an approval instance with Decision = AutoApproved for audit trail
+- Flag any auto-approved document clearly in reports
+
+---
+
 ## Priority Recommendation
 
 | Priority | Enhancement | Reason |
 |----------|------------|--------|
+| High | 11.1 Configurable Approval Matrix | Current flat approval is not production-grade |
+| High | 11.2 Approval Workflow Engine | Foundation all other approvals depend on |
+| High | 11.3 Multi-Level PO Approval | POs above SAR 100K need CEO sign-off |
+| High | 11.5 Approval Dashboard | Approvers have no single place to act |
 | High | 1.2 Project Milestone Tracking | Core PM gap — projects have no schedule |
 | High | 1.1 Change Order Management | Contract value changes are inevitable |
 | High | 3.2 Cash Flow Forecast | Financial planning critical for construction |
 | High | 4.1 Attendance & Time Tracking | Ties labor to actual project hours |
 | High | 5.2 ZATCA API Clearance | Phase 2 mandate — automates compliance |
 | High | 8.1 Client Master | Invoices currently store client data inline |
+| Medium | 11.4 Delegation / Out-of-Office | Prevents approval bottlenecks |
+| Medium | 11.7 Budget-Based Auto-Approval | Reduces approval overhead for routine spend |
 | Medium | 6.1 P&L Statement | Management needs consolidated financials |
 | Medium | 7.1 Equipment Register | Assets have no tracking today |
 | Medium | 9.1 In-App Notifications | Reduces missed approvals and alerts |
