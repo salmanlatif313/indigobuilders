@@ -852,3 +852,159 @@ Build in this order — each step is a prerequisite for the next:
 8. **ZATCA per-tenant credentials** (12.8) — compliance-correct invoicing per company
 9. **Super-Admin portal** (12.9) — operational control plane
 10. **Per-tenant backup** (12.10) — data safety at scale
+
+---
+
+## 13. Document & File Attachments
+
+No document in the system (PO, BOQ, RFQ, GRN, QC inspection, Invoice, Expense, Vendor record) can currently have a file attached to it. The only file handling that exists is CSV import for Labor (memory-only, never saved) and generated ZATCA XML / WPS SIF downloads. This section covers adding a universal attachment layer across all modules.
+
+### 13.1 Attachment Storage Layer [New Module]
+Shared infrastructure for storing and retrieving files — used by all modules below.
+- Tables: `Attachments`
+- Fields: AttachmentID, EntityType (PO/BOQ/RFQ/GRN/QC/Invoice/Expense/Vendor/Contract/Labor), EntityID, FileName, OriginalName, FilePath, MimeType, FileSizeKB, UploadedBy, UploadDate, Notes
+- Storage: disk-based under `uploads/{entityType}/{entityId}/` on the server (or configurable to Azure Blob / S3 for multi-tenant)
+- Upload: `multer` middleware (already used in `labor.ts`) extended to persist to disk instead of memory; 20 MB per file, configurable allowed MIME types per entity type
+- Download: `GET /api/attachments/:id/download` — streams file with original filename; respects the role permissions of the parent entity
+- Delete: `DELETE /api/attachments/:id` — Admin or uploader only; removes file from disk and DB row
+- **Source:** Gap in system — confirmed no FilePath, ImageUrl, or attachment table exists anywhere in `schema.sql`; all documents are data-only with no supporting file capability
+
+### 13.2 PO Attachments [Quick Win]
+Attach supplier quotations, signed PO acknowledgements, and delivery confirmations to a Purchase Order.
+- Allowed types: PDF, DOCX, XLSX, PNG, JPG
+- Shown on PO detail page: attachment list with filename, size, uploader, date
+- Approval email (item 11.3) includes attachment count and download links for the approver
+- Common use: attach vendor pro-forma invoice before raising PO; attach signed copy after approval
+- **Source:** Gap in `PurchaseOrdersView` / `purchase-orders.ts` — POs have Notes field only; signed copies and vendor quotes are emailed separately and lost
+
+### 13.3 BOQ Attachments [Quick Win]
+Attach the original tender BOQ document, quantity survey, or engineer's estimate to a BOQ header.
+- Allowed types: PDF, XLSX, DWG (AutoCAD), CSV
+- Versioned: each BOQ revision (RevisionNumber) can have its own set of attachments
+- Engineers can download the original BOQ document directly from the BOQ view
+- **Source:** Gap in `BOQView` / `boq.ts` — BOQ items are imported from Excel but the source file is discarded after import; no way to retrieve the original document
+
+### 13.4 RFQ Attachments [Quick Win]
+Attach technical specifications, drawings, or scope documents to an RFQ so vendors receive the full picture.
+- Allowed types: PDF, DOCX, DWG, PNG, JPG, XLSX
+- Included in the vendor email dispatch (item 2.4) as download links
+- Vendors can attach their own quotation documents when submitting quotes (stored under `RFQVendorQuotes`)
+- **Source:** Gap in `RFQView` / `rfq.ts` — RFQ lines have Description and Notes only; technical drawings and spec documents cannot be shared with vendors through the system
+
+### 13.5 GRN / Delivery Note Attachments [Quick Win]
+Attach the physical delivery note, packing list, or weighbridge slip to a GRN.
+- Allowed types: PDF, PNG, JPG
+- Mandatory attachment option: Admin can configure that a GRN cannot move from Draft to Inspecting without at least one attachment (delivery note)
+- Linked to the vendor bill for three-way matching: PO ↔ GRN ↔ Bill all have supporting documents
+- **Source:** Gap in `GRNView` / `grn.ts` — GRN captures delivery details (VehicleNo, DriverName, DeliveryNoteNo) as text fields but the physical delivery note cannot be scanned and stored
+
+### 13.6 QC Inspection Attachments [Quick Win]
+Attach inspection photos of accepted or rejected materials as evidence.
+- Allowed types: PNG, JPG, HEIC (photos from mobile)
+- Per-line photos: attach photos to a specific QC line (e.g., photo of the cracked pipe in line 3)
+- Rejection evidence: when a QC line is rejected, photo attachment becomes mandatory
+- Used as proof for material return to vendor (item 2.5) and warranty claims
+- **Source:** Gap in `QCView` / `qc.ts` — QC decisions are recorded as text (AcceptedQty, RejectedQty, RejectionReason) with no photographic evidence; disputes with vendors cannot be supported
+
+### 13.7 Invoice Attachments [Quick Win]
+Attach supporting documents to customer invoices: completion certificates, LPOs, delivery receipts.
+- Allowed types: PDF, PNG, JPG, DOCX
+- Client LPO (Local Purchase Order) attachment: store the client's authorising LPO against the invoice
+- Payment proof: Finance can attach bank transfer confirmation once payment is received
+- Complements the existing ZATCA XML download — invoice folder contains both the XML and the human-readable supporting docs
+- **Source:** Gap in `InvoicesView` / `invoices.ts` — only the ZATCA XML is downloadable; client LPOs, completion certificates, and payment confirmations are managed outside the system
+
+### 13.8 Vendor Attachments [Quick Win]
+Attach vendor registration documents, VAT certificates, IBAN letters, and trade licences to a Vendor record.
+- Allowed types: PDF, PNG, JPG
+- Expiry tracking: each attachment can have an ExpiryDate (e.g., trade licence expires annually); alert 30 days before expiry
+- Vendor approval workflow (ApprovalStatus in `Vendors` table) requires at least one VAT certificate attachment before status can change to Approved
+- **Source:** Gap in `VendorsView` / `vendors.ts` — `Vendors` table has VATNumber and IBAN fields as text; the actual certificate documents supporting these values cannot be stored
+
+### 13.9 Expense Attachments [Quick Win]
+Attach receipts, petty cash vouchers, and fuel slips to expense entries.
+- Allowed types: PDF, PNG, JPG
+- Mandatory enforcement: configurable per Category — e.g., Equipment and Subcontractor expenses require an attachment; petty cash items above SAR 500 require receipt
+- Feeds the approval matrix (item 11.1): approver can view receipt before approving expense
+- **Source:** Gap in `ExpensesView` / `expenses.ts` — expenses are entered with Amount and ReferenceNo only; no receipt or supporting document can be stored; audit trail is incomplete
+
+### 13.10 In-Browser Document Viewer [Quick Win]
+View PDF and image attachments directly in the portal without downloading.
+- PDF: rendered using `pdf.js` (Mozilla) embedded in a modal
+- Images: full-size lightbox with zoom
+- Supported on: PO detail, GRN detail, Invoice detail, Vendor detail, Expense detail
+- Mobile-friendly: swipe between multiple attachments on the same record
+- **Source:** UX gap — even with storage in place, forcing users to download and open files locally breaks the workflow; inline viewing keeps users in the portal
+
+---
+
+## 14. Product / Item Catalog with Pictures & Specs
+
+Currently, items exist only as free-text descriptions inside BOQItems and StoreStock — there is no master item catalog, no image, and no technical specification. Every time the same material appears in a new BOQ or PO, its description is re-typed from scratch with no consistency. This section covers a centralized item master that all procurement and inventory modules draw from.
+
+### 14.1 Item Master Catalog [New Module]
+A centralized repository of all materials, equipment, and services the company procures or uses.
+- Tables: `ItemCatalog`, `ItemCategories`, `ItemSpecs`
+- `ItemCatalog` fields: ItemCode (unique), ItemName, ItemNameAr, CategoryID, Unit, DefaultUnitCost, Brand, Model, CountryOfOrigin, IsActive, Notes
+- `ItemCategories`: hierarchical — e.g., Civil → Concrete → Ready-Mix; MEP → Electrical → Cables
+- `ItemSpecs`: key-value pairs per item — e.g., `{ "Grade": "C30", "Slump": "100mm", "MaxAggregate": "20mm" }` — flexible, no fixed columns
+- Item codes follow a structured convention: `CAT-SUBCAT-NNNN` (e.g., `CIV-CON-0001`)
+- **Source:** Gap in system — `BOQItems.Description` and `StoreStock.ItemDescription` are free-text; the same material is described differently across BOQs and POs, making spend analysis and stock matching impossible
+
+### 14.2 Item Images [Quick Win]
+Attach one or more product images to each catalog item.
+- Tables: `ItemImages`
+- Fields: ItemID, ImagePath, IsPrimary, UploadedBy, UploadDate
+- Primary image shown as thumbnail in BOQ item list, RFQ lines, stock table, and PO line items
+- Multiple images: swipeable gallery on item detail page (front, back, label, installed view)
+- Allowed types: PNG, JPG, WEBP — auto-resized to 800×800 px on upload to control storage
+- **Source:** Gap in `ItemCatalog` (new) and all existing item tables — no image field exists anywhere in `schema.sql`; procurement staff cannot visually confirm they are ordering the correct material
+
+### 14.3 Technical Specification Sheets [Quick Win]
+Attach manufacturer datasheets, MSDS, and test reports to catalog items.
+- Tables: extend `Attachments` table (item 13.1) with `EntityType = 'ItemCatalog'`
+- Spec sheet types: Datasheet / MSDS / TestReport / DrawingReference / ComplianceCert
+- Version-aware: a newer datasheet supersedes older but old version is retained for reference
+- Shown on: Item detail, BOQ item detail (linked), RFQ line detail (linked)
+- Searchable: full-text search across spec sheet filenames and notes
+- **Source:** Gap in system — no datasheet storage exists; engineers must search manufacturer websites for specs; QC inspectors have no reference document to compare against during inspection
+
+### 14.4 Item Catalog Linked to BOQ Items [Quick Win]
+Link BOQ line items to the item catalog for consistent pricing and descriptions.
+- New column on `BOQItems`: `ItemCatalogID` (nullable FK to `ItemCatalog`)
+- When creating/importing a BOQ, items can be mapped to catalog entries
+- Linking auto-fills: ItemName, Unit, DefaultUnitCost (editable override per BOQ)
+- Unlinked items remain as free-text (backward compatible with existing BOQs)
+- BOQ summary shows: X of Y items linked to catalog, Z unlinked (prompts user to map)
+- **Source:** Gap in BOQ → Procurement chain — `BOQItems` have free-text Description; when the same item appears in an RFQ or PO, there is no programmatic way to confirm it matches the BOQ item
+
+### 14.5 Item Catalog Linked to Store Stock [Quick Win]
+Link stock items to the catalog for consistent identification across projects.
+- New column on `StoreStock`: `ItemCatalogID` (nullable FK)
+- When QC accepts items → stock created/updated: if GRN line is linked to a PO line linked to a catalog item, stock inherits the `ItemCatalogID`
+- Enables cross-project stock lookup: "Do we have Grade C30 concrete admixture in any project store?" — query by `ItemCatalogID` across all `StoreStock` rows
+- Prevents duplicate stock entries for the same physical item described differently
+- **Source:** Gap in `StoreStock` — `ItemDescription` is free-text; the same material received on two different GRNs may be stored as two different stock items if descriptions vary slightly
+
+### 14.6 Item Catalog Linked to RFQ Lines [Quick Win]
+When creating RFQ lines, select from the catalog instead of typing descriptions.
+- RFQ line creation: searchable catalog dropdown → auto-fills Description, Unit, attaches primary image and datasheet link
+- Vendors see the catalog image and spec sheet in the RFQ email (item 2.4) — reduces ambiguity in quotes
+- Quote comparison (vendor A vs. vendor B) is for the identical catalog item — not free-text that may differ
+- **Source:** Gap in `RFQView` / `rfq.ts` — `RFQLines.Description` is free-text; vendors may quote on slightly different specs if the description is ambiguous
+
+### 14.7 Preferred Vendor per Item [Quick Win]
+Tag one or more preferred vendors for each catalog item with their last quoted price.
+- Tables: `ItemPreferredVendors`
+- Fields: ItemCatalogID, VendorID, LastQuotedPrice, LastQuoteDate, LeadTimeDays, IsPreferred
+- When creating an RFQ for a catalog item, the system pre-selects preferred vendors for that item
+- Price trend: chart showing last 5 quoted prices per vendor for the same item — visible on item detail
+- **Source:** Gap in `Vendors` + `RFQVendorQuotes` — vendor quotes exist per RFQ line but are not aggregated back to the item level; procurement staff re-select vendors from scratch on each RFQ
+
+### 14.8 Item Catalog Import [Quick Win]
+Bulk-import the item master from Excel — mirrors the existing BOQ and Labor import patterns.
+- Excel template: ItemCode, ItemName, ItemNameAr, Category, Unit, DefaultUnitCost, Brand, Model, Notes
+- Auto-creates categories if they don't exist
+- Skip rows with duplicate ItemCode (or update if `--overwrite` flag set)
+- Returns import summary: created, updated, skipped, errors
+- **Source:** Pattern already established in `BOQView` (XLSX import with SheetJS) and `LaborView` (CSV import with multer) — same approach applied to the item catalog for initial data load
